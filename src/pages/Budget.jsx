@@ -250,6 +250,7 @@ export default function Budget() {
         {editing && (
           <ExpenseModal
             expense={editing}
+            members={trip.members}
             onClose={() => setEditing(null)}
             onSave={(patch) => {
               updateExpense(tripId, editing.id, patch)
@@ -264,11 +265,14 @@ export default function Budget() {
         {adding && (
           <ExpenseModal
             title="Add Expense"
+            members={trip.members}
             expense={{
               date: new Date().toISOString().slice(0, 10),
               name: '',
               category: 'food',
               amount: 0,
+              paidBy: 'you',
+              splitWith: 'equal',
             }}
             onClose={() => setAdding(false)}
             onSave={(patch) => {
@@ -302,8 +306,12 @@ function BudgetModal({ current, onClose, onSave }) {
   )
 }
 
-function ExpenseModal({ expense, onClose, onSave, onDelete, title = 'Edit Expense' }) {
-  const [form, setForm] = useState(expense)
+function ExpenseModal({ expense, members = [], onClose, onSave, onDelete, title = 'Edit Expense' }) {
+  const [form, setForm] = useState({
+    paidBy: 'you',
+    splitWith: 'equal',
+    ...expense,
+  })
   return (
     <Modal title={title} onClose={onClose}>
       <form
@@ -361,14 +369,39 @@ function ExpenseModal({ expense, onClose, onSave, onDelete, title = 'Edit Expens
             />
           </label>
         </div>
-        <label className="block">
-          <span className="mb-1 block text-xs text-ink-900/60">Split with / Paid by</span>
-          <select className="field" defaultValue="you">
-            <option value="you">You paid (split equally)</option>
-            <option value="solo">Just for you</option>
-            <option value="other">Someone else paid</option>
-          </select>
-        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="mb-1 block text-xs text-ink-900/60">Paid by</span>
+            <select
+              value={form.paidBy}
+              onChange={(e) => setForm({ ...form, paidBy: e.target.value })}
+              className="field"
+            >
+              <option value="you">You</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-ink-900/60">Split with</span>
+            <select
+              value={form.splitWith}
+              onChange={(e) => setForm({ ...form, splitWith: e.target.value })}
+              className="field"
+            >
+              <option value="equal">Everyone (split equally)</option>
+              <option value="solo">Just me</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  Just {m.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div className="mt-4 flex justify-between">
           {onDelete ? (
             <button
