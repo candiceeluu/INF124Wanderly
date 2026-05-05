@@ -125,7 +125,7 @@ function Hero() {
   const opacity = useTransform(scrollYProgress, [0, 0.8], [1, 0])
 
   return (
-    <section ref={ref} className="relative h-[92vh] min-h-[640px] w-full overflow-hidden">
+    <section ref={ref} className="relative h-[92vh] min-h-[600px] w-full overflow-hidden">
       {/* Parallax image */}
       <motion.div className="absolute inset-0" style={{ y, scale }}>
         <img
@@ -156,7 +156,7 @@ function Hero() {
       {/* Content */}
       <motion.div
         style={{ opacity }}
-        className="relative z-10 flex h-full flex-col justify-end px-6 pb-24 md:px-16 md:pb-32"
+        className="relative z-10 flex h-full flex-col justify-end px-6 pb-14 pt-28 md:px-16 md:pb-20 lg:pb-28"
       >
         <motion.div
           initial="hidden"
@@ -170,16 +170,16 @@ function Hero() {
           <motion.div
             variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
             transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-            className="mb-5 inline-flex max-w-full items-center gap-2 truncate whitespace-nowrap rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white backdrop-blur sm:text-xs"
+            className="mb-4 inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white backdrop-blur sm:text-xs"
           >
             <Sparkles className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">new · collaborative trip planning, made simple</span>
+            <span className="whitespace-nowrap">new · collaborative trip planning, made simple</span>
           </motion.div>
 
           <motion.h1
             variants={{ hidden: { opacity: 0, y: 28 }, show: { opacity: 1, y: 0 } }}
             transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-            className="lower font-display text-[3.4rem] font-extrabold leading-[0.95] tracking-tight text-white sm:text-7xl md:text-8xl"
+            className="lower font-display text-[3rem] font-extrabold leading-[0.95] tracking-tight text-white sm:text-6xl md:text-7xl xl:text-8xl"
           >
             make travel
             <br />
@@ -193,7 +193,7 @@ function Hero() {
           <motion.p
             variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
             transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-6 max-w-xl text-base text-white/85 sm:text-lg"
+            className="mt-5 max-w-xl text-sm text-white/85 sm:text-base lg:text-lg"
           >
             Plan trips with friends, split costs without the awkward math, and discover places
             that actually fit your vibe — all in one place.
@@ -225,7 +225,7 @@ function Hero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.7 }}
-          className="mt-14 grid max-w-2xl grid-cols-3 gap-4 text-white sm:gap-10"
+          className="mt-8 grid max-w-2xl grid-cols-3 gap-4 text-white sm:gap-10 lg:mt-12"
         >
           {[
             { v: '120k+', l: 'trips planned' },
