@@ -25,8 +25,18 @@ const COVER_PRESETS = [
   'https://images.unsplash.com/photo-1503614472-8c93d56e92ce?auto=format&fit=crop&w=1600&q=80',
 ]
 
+// ============================================================================
+// NewTrip.jsx — /app/trips/new. A 3-step wizard for creating a new trip:
+//   1. trip details   (name, destination, duration, start date)
+//   2. add a photo    (upload or pick a preset)
+//   3. invite buddies (collect emails)
+// On submit, calls TripsContext.addTrip() and navigates to the new trip.
+// ============================================================================
+
 const STEPS = ['trip details', 'add a photo', 'invite buddies']
 
+// Stepper — the small numbered progress bar at the top of the wizard.
+// `step` is 1-based; circles before it are checkmarks, the current one is bold.
 function Stepper({ step }) {
   return (
     <div className="mb-8 flex items-center justify-center gap-3">
@@ -70,14 +80,17 @@ function Stepper({ step }) {
   )
 }
 
+// NewTrip — the wizard's container component. Holds every piece of form
+// state in local useState so nothing touches global storage until "create".
 export default function NewTrip() {
-  const location = useLocation()
+  const location = useLocation()                 // router-injected URL info; carries pre-fill state
   const navigate = useNavigate()
-  const { addTrip } = useTrips()
-  const [step, setStep] = useState(1)
+  const { addTrip } = useTrips()                 // global action that appends to the trip list
+  const [step, setStep] = useState(1)            // which wizard step is showing (1, 2, or 3)
 
+  // ---- Form fields (local state, lost on unmount) ------------------------
   const [name, setName] = useState('')
-  const [destination, setDestination] = useState(location.state?.destination || '')
+  const [destination, setDestination] = useState(location.state?.destination || '') // pre-filled if user came from Home search
   const [duration, setDuration] = useState(4)
   const [startDate, setStartDate] = useState('')
   const [cover, setCover] = useState(COVER_PRESETS[0])
@@ -85,15 +98,19 @@ export default function NewTrip() {
     { id: 'i1', email: 'tina.tsai@example.com' },
     { id: 'i2', email: 'hamin@example.com' },
   ])
-  const [editingId, setEditingId] = useState(null)
-  const fileInput = useRef(null)
+  const [editingId, setEditingId] = useState(null)   // which invite row is currently in edit mode
+  const fileInput = useRef(null)                     // ref to the hidden <input type="file"> for cover uploads
 
+  // canNext — derived flag for "is the current step complete enough to advance".
+  // useMemo avoids recomputing on every keystroke unless deps change.
   const canNext = useMemo(() => {
     if (step === 1) return name.trim().length > 1 && destination.trim().length > 1
     if (step === 2) return !!cover
     return true
   }, [step, name, destination, cover])
 
+  // onFilePick — handler for the cover image <input type="file">. Reads the
+  // chosen image as a base64 data URL so we can save it inline (no upload).
   const onFilePick = (e) => {
     const f = e.target.files?.[0]
     if (!f) return
@@ -102,6 +119,8 @@ export default function NewTrip() {
     reader.readAsDataURL(f)
   }
 
+  // computeEndDate — adds `duration` days to startDate and returns it as
+  // an ISO date (yyyy-mm-dd) for storage.
   const computeEndDate = () => {
     if (!startDate) return ''
     const d = new Date(startDate)
@@ -109,6 +128,8 @@ export default function NewTrip() {
     return d.toISOString().slice(0, 10)
   }
 
+  // submit — finalize the wizard. Calls addTrip with everything we collected,
+  // then navigates the user straight into the new trip's overview page.
   const submit = () => {
     const trip = addTrip({
       name: name.trim() || 'Untitled Trip',

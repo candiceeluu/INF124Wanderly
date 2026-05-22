@@ -1,5 +1,14 @@
+// ============================================================================
+// Logo.jsx — Brand mark used in the top bar and auth pages.
+// Renders a gradient tile + the "wanderly" wordmark, wrapped in a Link so
+// clicking it navigates back to the destination passed in `to` (default: "/").
+// ============================================================================
 import { Link } from 'react-router-dom'
 
+// Logo — props:
+//   to:        route to navigate to when clicked (default "/")
+//   className: extra Tailwind classes (used to tint the wordmark)
+//   dark:      when true, adds a subtle white ring for visibility on dark bgs
 export default function Logo({ to = '/', className = '', dark = false }) {
   return (
     <Link

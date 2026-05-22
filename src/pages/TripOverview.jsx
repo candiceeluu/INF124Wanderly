@@ -6,6 +6,13 @@ import TripSubSidebar from '../components/TripSubSidebar.jsx'
 import PageTransition from '../components/PageTransition.jsx'
 import { useTrips } from '../contexts/TripsContext.jsx'
 
+// ============================================================================
+// TripOverview.jsx — /app/trips/:tripId. The "home" view for a single trip.
+// Pulls the trip from TripsContext using the :tripId URL param and renders
+// four panels: members, upcoming events, budget progress, accommodations.
+// ============================================================================
+
+// Map event types to icons so the Upcoming Events list can show a glyph.
 const TYPE_ICON = {
   flight: Plane,
   food: Utensils,
@@ -13,6 +20,8 @@ const TYPE_ICON = {
   hotel: Briefcase,
 }
 
+// formatRange — turns two ISO dates ("2026-05-02", "2026-05-10")
+// into a human-friendly "May 2 – May 10" string.
 function formatRange(s, e) {
   if (!s || !e) return ''
   const a = new Date(s)
@@ -21,9 +30,10 @@ function formatRange(s, e) {
   return `${a.toLocaleDateString(undefined, opts)} – ${b.toLocaleDateString(undefined, opts)}`
 }
 
+// TripOverview — main exported page component for a single trip.
 export default function TripOverview() {
-  const { tripId } = useParams()
-  const { getTrip } = useTrips()
+  const { tripId } = useParams()       // read :tripId from the URL
+  const { getTrip } = useTrips()       // lookup by id from the global store
   const trip = getTrip(tripId)
   const navigate = useNavigate()
 
@@ -226,6 +236,9 @@ export default function TripOverview() {
   )
 }
 
+// Card — small reusable section frame used for each panel on the overview.
+// `action` is an optional element shown in the top-right of the header
+// (e.g. "View all" / "Open budget" links).
 function Card({ title, action, children }) {
   return (
     <motion.section

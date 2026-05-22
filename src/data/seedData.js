@@ -1,5 +1,17 @@
-// Seed data used to populate localStorage on first load.
-// All data lives in TripsContext; the user can mutate everything from the UI.
+// ============================================================================
+// seedData.js — Initial values written into TripsContext on the very first
+// load (before localStorage has anything saved). After that, the actual
+// state lives in localStorage and this file is ignored.
+//
+// Three named exports:
+//   seedTrips           — array of demo trips (Taipei, Korea, Cabo, NYC) with
+//                         events, expenses, members, debts, and activity logs.
+//   seedRecommendations — static AI-style recommendations shown on Schedule.
+//   seedNotifications   — items that appear in the bell dropdown.
+//
+// No functions are defined here — it's purely data. Each top-level array is
+// imported by TripsContext.jsx in the useState initializer fallback.
+// ============================================================================
 
 export const seedTrips = [
   {

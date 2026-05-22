@@ -16,11 +16,20 @@ import TripSubSidebar from '../components/TripSubSidebar.jsx'
 import PageTransition from '../components/PageTransition.jsx'
 import { useTrips } from '../contexts/TripsContext.jsx'
 
+// ============================================================================
+// Schedule.jsx — /app/trips/:tripId/schedule. Weekly calendar view.
+// Left: 7-day grid (6 AM – 5 PM) with absolutely-positioned event blocks.
+// Right: AI recommendations panel; each one has an "Add" button that
+// pushes a new event onto the trip via TripsContext.addEvent().
+// ============================================================================
+
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-const HOURS = Array.from({ length: 12 }, (_, i) => i + 6) // 6am - 5pm
+const HOURS = Array.from({ length: 12 }, (_, i) => i + 6) // calendar rows: 6am - 5pm
 
 const RECO_TAGS = ['All', 'Food', 'Activities', 'Low budget', 'Near hotel']
 
+// startOfWeek — snap a date back to the previous Sunday at 00:00 so that
+// the calendar grid always renders a complete week regardless of click date.
 function startOfWeek(date) {
   const d = new Date(date)
   const day = d.getDay()
@@ -29,40 +38,50 @@ function startOfWeek(date) {
   return d
 }
 
+// fmtDay — render just the day-of-month number for the column headers.
 function fmtDay(d) {
   return d.toLocaleDateString(undefined, { day: 'numeric' })
 }
 
+// timeToY — convert an "HH:MM" string into a pixel offset from the top
+// of the calendar grid (used to absolute-position event blocks).
+// Each hour row is 56px tall.
 function timeToY(t) {
-  // t = "HH:MM"
   const [h, m] = t.split(':').map(Number)
   const start = HOURS[0]
   return ((h - start) + m / 60) * 56
 }
 
+// Schedule — main exported page. Holds calendar navigation state and
+// dispatches event CRUD into TripsContext.
 export default function Schedule() {
   const { tripId } = useParams()
   const { getTrip, addEvent, updateEvent, removeEvent, recommendations } = useTrips()
   const trip = getTrip(tripId)
 
+  // Calendar starts on the trip's start date (or today, if no trip).
   const initial = trip?.startDate ? new Date(trip.startDate) : new Date()
-  const [weekStart, setWeekStart] = useState(startOfWeek(initial))
-  const [activeTag, setActiveTag] = useState('All')
-  const [search, setSearch] = useState('')
+  const [weekStart, setWeekStart] = useState(startOfWeek(initial))   // anchor for the visible 7-day window
+  const [activeTag, setActiveTag] = useState('All')                  // selected filter chip in the reco list
+  const [search, setSearch] = useState('')                           // recommendation search input
 
-  const [editing, setEditing] = useState(null) // event being edited
-  const [details, setDetails] = useState(null) // event whose details are open
-  const [menuId, setMenuId] = useState(null) // event with open kebab menu
-  const [adding, setAdding] = useState(false)
+  // Modal/menu state. Only one of these is non-null at a time:
+  const [editing, setEditing] = useState(null)   // an event being edited in the modal
+  const [details, setDetails] = useState(null)   // an event whose details modal is open
+  const [menuId, setMenuId] = useState(null)     // id of event whose ⋯ menu is open
+  const [adding, setAdding] = useState(false)    // true when the "new event" modal is open
 
   if (!trip) return <PageTransition>Trip not found.</PageTransition>
 
+  // Build the 7 Date objects shown across the column headers.
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart)
     d.setDate(d.getDate() + i)
     return d
   })
 
+  // eventsByDay — group trip.events into buckets keyed by yyyy-mm-dd so the
+  // render loop can just look up `eventsByDay[dayKey]` for each column.
   const eventsByDay = useMemo(() => {
     const map = {}
     days.forEach((d) => (map[d.toISOString().slice(0, 10)] = []))
@@ -72,6 +91,8 @@ export default function Schedule() {
     return map
   }, [trip.events, weekStart])
 
+  // filteredRecos — apply the active tag chip and the search-box filter
+  // to the static seedRecommendations list.
   const filteredRecos = recommendations.filter((r) => {
     const matchTag =
       activeTag === 'All' ||
@@ -439,6 +460,9 @@ export default function Schedule() {
   )
 }
 
+// Modal — generic overlay used for editing/adding events and showing details.
+// Click on the backdrop closes; clicks on the inner panel are stopped from
+// bubbling so they don't trigger the backdrop's onClose.
 function Modal({ title, onClose, children }) {
   return (
     <motion.div
@@ -471,8 +495,10 @@ function Modal({ title, onClose, children }) {
   )
 }
 
+// EventForm — controlled form for creating/editing an event. The parent
+// passes in `event` (the starting values) and `onSave`/`onCancel` handlers.
 function EventForm({ event, onSave, onCancel }) {
-  const [form, setForm] = useState(event)
+  const [form, setForm] = useState(event)   // local working copy; only committed on submit
   return (
     <form
       onSubmit={(e) => {

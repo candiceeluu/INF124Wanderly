@@ -8,6 +8,16 @@ import TripSubSidebar from '../components/TripSubSidebar.jsx'
 import PageTransition from '../components/PageTransition.jsx'
 import { useTrips } from '../contexts/TripsContext.jsx'
 
+// ============================================================================
+// Budget.jsx — /app/trips/:tripId/budget. Shows:
+//   • a "spent / total" progress card
+//   • a recharts pie chart of expenses by category
+//   • a "you are owed" list (debts)
+//   • the full expense table with add/edit/delete modals
+// All mutations go through TripsContext (addExpense / updateExpense / etc.)
+// ============================================================================
+
+// Static category → hex color map. Mirrored in the Tailwind theme palette.
 const CATEGORY_COLORS = {
   food: '#9bc855',     // caper-500
   shopping: '#FA9397', // dolly-400
@@ -19,18 +29,22 @@ const CATEGORY_COLORS = {
 
 const CATEGORIES = Object.keys(CATEGORY_COLORS)
 
+// Budget — page component. Reads expense/debt data from the trip and
+// dispatches changes through TripsContext.
 export default function Budget() {
   const { tripId } = useParams()
   const { getTrip, addExpense, updateExpense, removeExpense, setBudgetTotal } = useTrips()
   const trip = getTrip(tripId)
-  const [editing, setEditing] = useState(null)
-  const [adding, setAdding] = useState(false)
-  const [editingBudget, setEditingBudget] = useState(false)
+  const [editing, setEditing] = useState(null)         // expense currently being edited
+  const [adding, setAdding] = useState(false)          // is the "add expense" modal open?
+  const [editingBudget, setEditingBudget] = useState(false) // is the "edit total" modal open?
 
   if (!trip) return <PageTransition>Trip not found.</PageTransition>
 
   const pct = Math.min(100, Math.round((trip.budget.spent / trip.budget.total) * 100))
 
+  // pieData — fold trip.expenses into {category, sum} entries for recharts.
+  // Memoized so the chart only recomputes when the expense list changes.
   const pieData = useMemo(() => {
     const acc = {}
     trip.expenses.forEach((x) => {
@@ -286,6 +300,8 @@ export default function Budget() {
   )
 }
 
+// BudgetModal — tiny modal with a number input for changing the trip's total.
+// Local state `v` lets the user type without committing until "Save".
 function BudgetModal({ current, onClose, onSave }) {
   const [v, setV] = useState(current)
   return (
@@ -306,6 +322,8 @@ function BudgetModal({ current, onClose, onSave }) {
   )
 }
 
+// ExpenseModal — the add/edit form for one expense. The same component
+// is reused for both "Add" (no `onDelete` passed) and "Edit" (delete shown).
 function ExpenseModal({ expense, members = [], onClose, onSave, onDelete, title = 'Edit Expense' }) {
   const [form, setForm] = useState({
     paidBy: 'you',
@@ -424,6 +442,8 @@ function ExpenseModal({ expense, members = [], onClose, onSave, onDelete, title 
   )
 }
 
+// Modal — same overlay pattern used in Schedule.jsx (defined locally here
+// rather than shared to keep the file self-contained).
 function Modal({ title, onClose, children }) {
   return (
     <motion.div

@@ -6,11 +6,18 @@ import TopBar from '../components/TopBar.jsx'
 import PageTransition from '../components/PageTransition.jsx'
 import { useAuth } from '../contexts/AuthContext.jsx'
 
+// ============================================================================
+// Settings.jsx — /app/settings. Edit profile fields, toggle notification
+// preferences, and delete the account. Profile edits go through
+// AuthContext.updateUser; notification toggles are local-only in this demo.
+// ============================================================================
 export default function Settings() {
   const { user, updateUser, logout } = useAuth()
+  // Controlled inputs initialized from the persisted user.
   const [name, setName] = useState(user?.name || '')
   const [email, setEmail] = useState(user?.email || '')
   const [birthday, setBirthday] = useState('')
+  // Notification toggles — purely local for now, not persisted anywhere.
   const [notif, setNotif] = useState({
     schedule: true,
     budget: true,
@@ -151,6 +158,8 @@ export default function Settings() {
   )
 }
 
+// Field — tiny presentation wrapper used to attach a small uppercase label
+// above each input in the profile grid. Keeps markup DRY.
 function Field({ label, children }) {
   return (
     <label className="block">

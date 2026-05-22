@@ -1,3 +1,9 @@
+// ============================================================================
+// Activity.jsx — /app/trips/:tripId/activity. Read-only timeline of every
+// change made to a trip (added/removed events, updated budget, etc).
+// The entries come from trip.activity which is written by TripsContext
+// helpers like addEvent and addExpense.
+// ============================================================================
 import { useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import TopBar from '../components/TopBar.jsx'
@@ -5,6 +11,8 @@ import TripSubSidebar from '../components/TripSubSidebar.jsx'
 import PageTransition from '../components/PageTransition.jsx'
 import { useTrips } from '../contexts/TripsContext.jsx'
 
+// groupByDate — bucket activity entries by their `date` field so we can
+// render one row of entries per date heading in the timeline.
 function groupByDate(items) {
   const groups = {}
   items.forEach((it) => {
@@ -15,14 +23,16 @@ function groupByDate(items) {
   return groups
 }
 
+// Activity — page component. Sorts the date keys descending so the most
+// recent day appears at the top.
 export default function Activity() {
   const { tripId } = useParams()
   const { getTrip } = useTrips()
   const trip = getTrip(tripId)
-  if (!trip) return null
+  if (!trip) return null                                   // guard for an invalid URL
 
   const grouped = groupByDate(trip.activity)
-  const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
+  const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))  // newest first
 
   return (
     <PageTransition className="relative flex flex-1 flex-col">

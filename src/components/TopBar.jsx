@@ -1,3 +1,8 @@
+// ============================================================================
+// TopBar.jsx — The header used on every authenticated page.
+// Contains the logo, a notifications bell with dropdown, and a profile
+// menu with logout. Both dropdowns close when you click outside of them.
+// ============================================================================
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -6,28 +11,35 @@ import Logo from './Logo.jsx'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useTrips } from '../contexts/TripsContext.jsx'
 
+// useClickOutside — custom hook. Attaches a global mousedown listener; if
+// the click lands outside the element referenced by `ref`, runs `fn` (used
+// to auto-close the notification and profile dropdowns).
 function useClickOutside(ref, fn) {
   useEffect(() => {
     const onDoc = (e) => {
       if (ref.current && !ref.current.contains(e.target)) fn()
     }
     document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc) // cleanup on unmount
   }, [ref, fn])
 }
 
+// TopBar — `light` flips the text color scheme for use over pale backgrounds.
 export default function TopBar({ light = false }) {
-  const { user, logout } = useAuth()
-  const { notifications, markNotifRead, markAllNotifsRead } = useTrips()
-  const [openNotif, setOpenNotif] = useState(false)
-  const [openProfile, setOpenProfile] = useState(false)
+  const { user, logout } = useAuth()                                  // current user + signout
+  const { notifications, markNotifRead, markAllNotifsRead } = useTrips() // notification feed + mutators
+  const [openNotif, setOpenNotif] = useState(false)                   // is the bell dropdown open?
+  const [openProfile, setOpenProfile] = useState(false)               // is the avatar dropdown open?
   const navigate = useNavigate()
 
+  // Refs are passed into useClickOutside so the dropdowns auto-close
+  // when the user clicks anywhere outside of them.
   const notifRef = useRef(null)
   const profileRef = useRef(null)
   useClickOutside(notifRef, () => setOpenNotif(false))
   useClickOutside(profileRef, () => setOpenProfile(false))
 
+  // Count badge — how many notifications have read === false.
   const unread = notifications.filter((n) => !n.read).length
 
   return (

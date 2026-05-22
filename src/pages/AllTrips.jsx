@@ -8,8 +8,12 @@ import { useTrips } from '../contexts/TripsContext.jsx'
 const HERO =
   'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=2400&q=80'
 
+// ============================================================================
+// AllTrips.jsx — /app/trips. Full grid view of every saved trip.
+// Reuses the same TripCard idea as Home but in a larger 4-column layout.
+// ============================================================================
 export default function AllTrips() {
-  const { trips } = useTrips()
+  const { trips } = useTrips()    // read trips array from TripsContext
   return (
     <PageTransition className="relative flex flex-1 flex-col overflow-hidden">
       <div className="absolute inset-0 -z-0">

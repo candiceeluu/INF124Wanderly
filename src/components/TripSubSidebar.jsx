@@ -1,6 +1,12 @@
+// ============================================================================
+// TripSubSidebar.jsx — Floating mini-nav that appears on every trip-scoped
+// page (Overview, Schedule, Budget, Activity). Centered vertically on the
+// left edge with icons for the four sub-views plus a settings shortcut.
+// ============================================================================
 import { NavLink } from 'react-router-dom'
 import { Home, CalendarDays, Wallet, Activity as ActivityIcon, Settings } from 'lucide-react'
 
+// Sub-routes within a trip — `to: ''` means the trip overview itself.
 const items = [
   { to: '', icon: Home, label: 'home' },
   { to: 'schedule', icon: CalendarDays, label: 'sched' },
@@ -8,6 +14,8 @@ const items = [
   { to: 'activity', icon: ActivityIcon, label: 'activity' },
 ]
 
+// TripSubSidebar — receives the current trip id from the parent page so it
+// can build absolute URLs like /app/trips/abc/schedule.
 export default function TripSubSidebar({ tripId }) {
   return (
     <aside className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-2xl bg-ink-700/60 p-1.5 shadow-card backdrop-blur">

@@ -1,14 +1,29 @@
+// ============================================================================
+// AuthShell.jsx — Shared chrome for the Login and Signup screens.
+// Both pages render <AuthShell mode="..." onSubmit={...} />; this component
+// owns the form, the parallax hero image, the Google button, and the
+// post-submit redirect logic.
+// ============================================================================
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Logo from './Logo.jsx'
 
+// Hero photo used as the full-bleed background on both auth screens.
 const HERO =
   'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=2400&q=80'
 
+// AuthShell — props:
+//   mode:     'login' | 'signup' — tweaks tab styling and helper copy.
+//   onSubmit: callback invoked with { email, password } before navigation.
+//   title:    big heading at the top of the card ("Log In" / "Sign Up").
+//   cta:      label of the submit button.
 export default function AuthShell({ mode = 'login', onSubmit, title, cta }) {
   const navigate = useNavigate()
   const location = useLocation()
 
+  // handle — form submit handler. Reads the form via FormData, calls
+  // the parent's onSubmit, then redirects either to wherever RequireAuth
+  // was trying to go (location.state.from) or /app by default.
   const handle = (e) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
@@ -17,6 +32,8 @@ export default function AuthShell({ mode = 'login', onSubmit, title, cta }) {
     navigate(dest, { replace: true })
   }
 
+  // handleGoogle — pretend SSO. Hard-codes a fake email/password so the demo
+  // can show the "Google" path without any real OAuth.
   const handleGoogle = () => {
     onSubmit?.({ email: 'google.user@wanderly.app', password: 'sso' })
     navigate('/app', { replace: true })
