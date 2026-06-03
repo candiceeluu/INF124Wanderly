@@ -9,14 +9,6 @@ import { useTrips } from '../contexts/TripsContext.jsx'
 const HERO =
   'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=2400&q=80'
 
-// ============================================================================
-// Home.jsx — /app dashboard. The hero "where to?" search bar plus a strip
-// of the most recent trips. The search field just navigates to /app/trips/new
-// with the typed destination pre-filled.
-// ============================================================================
-
-// TripCard — small clickable cover-art tile used in the "my trips" grid.
-// `index` staggers the entrance animation so cards fade in in sequence.
 function TripCard({ trip, index }) {
   const start = trip.startDate
     ? new Date(trip.startDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -55,14 +47,11 @@ function TripCard({ trip, index }) {
   )
 }
 
-// Home — the default-exported page component.
 export default function Home() {
-  const { trips } = useTrips()                  // every trip in the store
+  const { trips } = useTrips()
   const navigate = useNavigate()
-  const [query, setQuery] = useState('')        // controlled state for the search input
+  const [query, setQuery] = useState('')
 
-  // onSearch — submit handler. Sends the typed destination as router state
-  // to NewTrip so the form there starts already pre-filled.
   const onSearch = (e) => {
     e.preventDefault()
     navigate('/app/trips/new', { state: { destination: query } })
@@ -70,7 +59,6 @@ export default function Home() {
 
   return (
     <PageTransition className="relative flex flex-1 flex-col overflow-hidden">
-      {/* Background */}
       <div className="absolute inset-0 -z-0">
         <img src={HERO} alt="" className="h-full w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-ink-900/60 via-ink-900/35 to-ink-900/85" />
@@ -79,7 +67,6 @@ export default function Home() {
       <div className="relative z-10 flex flex-1 flex-col">
         <TopBar />
 
-        {/* Hero search */}
         <section className="flex flex-col items-center px-6 pb-10 pt-16 text-center text-white md:pt-24">
           <motion.h1
             initial={{ opacity: 0, y: 16 }}
@@ -131,7 +118,6 @@ export default function Home() {
           </motion.div>
         </section>
 
-        {/* My trips */}
         <section className="mt-auto rounded-t-[28px] bg-white px-6 py-8 text-ink-900 shadow-2xl md:px-12">
           <div className="mx-auto max-w-7xl">
             <div className="mb-5 flex items-end justify-between">

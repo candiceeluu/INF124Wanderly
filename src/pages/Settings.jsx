@@ -6,18 +6,12 @@ import TopBar from '../components/TopBar.jsx'
 import PageTransition from '../components/PageTransition.jsx'
 import { useAuth } from '../contexts/AuthContext.jsx'
 
-// ============================================================================
-// Settings.jsx — /app/settings. Edit profile fields, toggle notification
-// preferences, and delete the account. Profile edits go through
-// AuthContext.updateUser; notification toggles are local-only in this demo.
-// ============================================================================
 export default function Settings() {
-  const { user, updateUser, logout } = useAuth()
-  // Controlled inputs initialized from the persisted user.
+  const { user, updateUser, logout, deleteAccount } = useAuth()
   const [name, setName] = useState(user?.name || '')
   const [email, setEmail] = useState(user?.email || '')
-  const [birthday, setBirthday] = useState('')
-  // Notification toggles — purely local for now, not persisted anywhere.
+  const [birthday, setBirthday] = useState(user?.birthday ? user.birthday.slice(0, 10) : '')
+  const [saving, setSaving] = useState(false)
   const [notif, setNotif] = useState({
     schedule: true,
     budget: true,
@@ -75,10 +69,18 @@ export default function Settings() {
             </div>
             <div className="mt-5 flex justify-end">
               <button
-                onClick={() => updateUser({ name, email })}
-                className="btn-brand"
+                disabled={saving}
+                onClick={async () => {
+                  setSaving(true)
+                  try {
+                    await updateUser({ name, email, birthday: birthday || null })
+                  } finally {
+                    setSaving(false)
+                  }
+                }}
+                className="btn-brand disabled:opacity-60"
               >
-                Save changes
+                {saving ? 'Saving…' : 'Save changes'}
               </button>
             </div>
           </motion.section>
@@ -139,11 +141,10 @@ export default function Settings() {
                 Export my data
               </button>
               <button
-                onClick={() => {
-                  if (confirm('Delete account? This cannot be undone.')) {
-                    logout()
-                    navigate('/', { replace: true })
-                  }
+                onClick={async () => {
+                  if (!confirm('Delete account? This cannot be undone.')) return
+                  await deleteAccount()
+                  navigate('/', { replace: true })
                 }}
                 className="inline-flex items-center gap-1 rounded-full bg-dolly-600 px-4 py-2 text-xs font-medium text-white hover:bg-dolly-700"
               >
@@ -158,8 +159,6 @@ export default function Settings() {
   )
 }
 
-// Field — tiny presentation wrapper used to attach a small uppercase label
-// above each input in the profile grid. Keeps markup DRY.
 function Field({ label, children }) {
   return (
     <label className="block">

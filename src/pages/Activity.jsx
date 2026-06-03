@@ -1,9 +1,3 @@
-// ============================================================================
-// Activity.jsx — /app/trips/:tripId/activity. Read-only timeline of every
-// change made to a trip (added/removed events, updated budget, etc).
-// The entries come from trip.activity which is written by TripsContext
-// helpers like addEvent and addExpense.
-// ============================================================================
 import { useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import TopBar from '../components/TopBar.jsx'
@@ -11,28 +5,24 @@ import TripSubSidebar from '../components/TripSubSidebar.jsx'
 import PageTransition from '../components/PageTransition.jsx'
 import { useTrips } from '../contexts/TripsContext.jsx'
 
-// groupByDate — bucket activity entries by their `date` field so we can
-// render one row of entries per date heading in the timeline.
 function groupByDate(items) {
   const groups = {}
   items.forEach((it) => {
-    const k = it.date
+    const k = typeof it.date === 'string' ? it.date.slice(0, 10) : new Date(it.date).toISOString().slice(0, 10)
     groups[k] = groups[k] || []
     groups[k].push(it)
   })
   return groups
 }
 
-// Activity — page component. Sorts the date keys descending so the most
-// recent day appears at the top.
 export default function Activity() {
   const { tripId } = useParams()
   const { getTrip } = useTrips()
   const trip = getTrip(tripId)
-  if (!trip) return null                                   // guard for an invalid URL
+  if (!trip) return null
 
-  const grouped = groupByDate(trip.activity)
-  const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))  // newest first
+  const grouped = groupByDate(trip.activity || trip.activities || [])
+  const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
 
   return (
     <PageTransition className="relative flex flex-1 flex-col">
@@ -51,7 +41,7 @@ export default function Activity() {
           >
             {dates.length === 0 && (
               <div className="p-8 text-center text-sm text-white/55">
-                No activity yet — start adding events or expenses to see updates here.
+                No activity yet, start adding events or expenses to see updates here.
               </div>
             )}
             {dates.map((d) => (
@@ -65,29 +55,32 @@ export default function Activity() {
                   </div>
                 </div>
                 <ul className="space-y-2">
-                  {grouped[d].map((a) => (
-                    <li
-                      key={a.id}
-                      className="flex items-center gap-3 rounded-xl bg-white/5 px-3 py-2 ring-1 ring-white/5"
-                    >
-                      <div
-                        className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-brand-300 to-brand-700 text-xs font-bold text-white"
-                        aria-hidden
+                  {grouped[d].map((a) => {
+                    const name = a.userName || a.user || 'Someone'
+                    return (
+                      <li
+                        key={a.id}
+                        className="flex items-center gap-3 rounded-xl bg-white/5 px-3 py-2 ring-1 ring-white/5"
                       >
-                        {a.user
-                          .split(' ')
-                          .map((p) => p[0])
-                          .join('')}
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-sm">
-                          <span className="font-semibold">{a.user}</span>{' '}
-                          <span className="text-white/75">{a.text}</span>
+                        <div
+                          className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-brand-300 to-brand-700 text-xs font-bold text-white"
+                          aria-hidden
+                        >
+                          {name
+                            .split(' ')
+                            .map((p) => p[0])
+                            .join('')}
                         </div>
-                      </div>
-                      <div className="text-[11px] text-white/55">{a.time}</div>
-                    </li>
-                  ))}
+                        <div className="flex-1">
+                          <div className="text-sm">
+                            <span className="font-semibold">{name}</span>{' '}
+                            <span className="text-white/75">{a.text}</span>
+                          </div>
+                        </div>
+                        <div className="text-[11px] text-white/55">{a.time}</div>
+                      </li>
+                    )
+                  })}
                 </ul>
               </div>
             ))}

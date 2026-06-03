@@ -1,23 +1,13 @@
-// ============================================================================
-// TripsSidebar.jsx — The narrow left rail (Discord-style) inside AppShell.
-// Shows the Home button on top, then one tile per saved trip, and an
-// "Add new trip" button at the bottom. Highlights the currently-viewed trip
-// using the :tripId URL param.
-// ============================================================================
 import { Link, NavLink, useParams } from 'react-router-dom'
 import { Plus, Home as HomeIcon } from 'lucide-react'
 import { useTrips } from '../contexts/TripsContext.jsx'
 
-// Initials — tiny helper component that renders the first letters of the
-// first two words of `name` (e.g. "Taipei Trip 2026" → "TT") for the trip tile.
 function Initials({ name }) {
   const parts = name.trim().split(/\s+/)
   const text = (parts[0]?.[0] || '') + (parts[1]?.[0] || '')
   return <span className="text-[11px] font-bold text-white">{text.toUpperCase()}</span>
 }
 
-// TripsSidebar — reads the trip list from context and the current :tripId
-// from the URL to decide which tile gets the "active" outline.
 export default function TripsSidebar() {
   const { trips } = useTrips()
   const { tripId } = useParams()

@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  googleId    String   @unique
+  email       String   @unique
+  name        String
+  givenName   String?
+  familyName  String?
+  avatar      String?
+  birthday    DateTime?
+  memberSince DateTime @default(now())
+
+  notifSchedule Boolean @default(true)
+  notifBudget   Boolean @default(true)
+  notifInvites  Boolean @default(true)
+  notifDigest   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownedTrips    Trip[]         @relation("TripOwner")
+  memberships   TripMember[]
+  notifications Notification[]
+  activities    Activity[]
+  expensesPaid  Expense[]      @relation("ExpensePaidBy")
+}
+
+model Trip {
+  id          String    @id @default(cuid())
+  name        String
+  location    String?
+  startDate   DateTime?
+  endDate     DateTime?
+  cover       String?
+  color       String?   @default("from-brand-400 to-brand-700")
+  budgetTotal Float     @default(1000)
+  budgetSpent Float     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownerId String
+  owner   User   @relation("TripOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  members        TripMember[]
+  events         Event[]
+  expenses       Expense[]
+  debts          Debt[]
+  accommodations Accommodation[]
+  activities     Activity[]
+
+  @@index([ownerId])
+}
+
+model TripMember {
+  id     String @id @default(cuid())
+  tripId String
+  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  name   String
+  email  String?
+  avatar String?
+
+  joinedAt DateTime @default(now())
+
+  @@unique([tripId, userId])
+  @@index([tripId])
+}
+
+model Event {
+  id     String   @id @default(cuid())
+  tripId String
+  trip   Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  title String
+  date  DateTime
+  start String
+  end   String
+  type  String
+  color String?
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tripId, date])
+}
+
+model Expense {
+  id     String @id @default(cuid())
+  tripId String
+  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  date     DateTime
+  name     String
+  category String
+  amount   Float
+
+  paidById String?
+  paidBy   User?   @relation("ExpensePaidBy", fields: [paidById], references: [id], onDelete: SetNull)
+
+  splitWith String @default("equal")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tripId])
+}
+
+model Debt {
+  id     String @id @default(cuid())
+  tripId String
+  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  fromName String
+  toName   String
+  amount   Float
+
+  createdAt DateTime @default(now())
+
+  @@index([tripId])
+}
+
+model Accommodation {
+  id     String @id @default(cuid())
+  tripId String
+  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  type         String
+  fromLocation String?
+  toLocation   String?
+  depart       String?
+  arrive       String?
+  confirmation String?
+
+  createdAt DateTime @default(now())
+
+  @@index([tripId])
+}
+
+model Activity {
+  id     String @id @default(cuid())
+  tripId String
+  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  userId   String?
+  user     User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName String
+
+  date DateTime
+  time String
+  text String
+
+  createdAt DateTime @default(now())
+
+  @@index([tripId, createdAt])
+}
+
+model Notification {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  text String
+  when String
+  read Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
