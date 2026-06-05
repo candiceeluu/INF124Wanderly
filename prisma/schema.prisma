@@ -1,0 +1,123 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  googleId  String   @unique
+  email     String   @unique
+  name      String
+  avatar    String?
+
+  ownedTrips        Trip[]
+
+  memberships       TripMember[]
+
+  expensesPaid      Expense[]
+
+  expenseShares     ExpenseParticipant[]
+}
+
+model Trip {
+  id          String    @id @default(cuid())
+  title       String
+  destination String
+  startDate   DateTime?
+  endDate     DateTime?
+  cover       String?
+  budgetTotal Float?
+
+  ownerId     String
+  owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  members         TripMember[]
+
+  expenses        Expense[]
+  events          Event[]
+  accommodations  Accommodation[]
+}
+
+model TripMember {
+  id        String     @id @default(cuid())
+  role      MemberRole @default(MEMBER)
+
+  tripId    String
+  trip      Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, userId])
+}
+
+enum MemberRole {
+  OWNER
+  MEMBER
+}
+
+model Expense {
+  id        String      @id @default(cuid())
+  name      String
+  amount    Float
+  category  String?
+  splitType SplitType   @default(EQUAL)
+  date      DateTime?
+
+  tripId    String
+  trip      Trip        @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  paidById  String
+  paidBy    User        @relation(fields: [paidById], references: [id])
+
+  participants ExpenseParticipant[]
+}
+
+enum SplitType {
+  EQUAL      
+  EXACT      
+}
+
+model ExpenseParticipant {
+  id        String  @id @default(cuid())
+  share     Float? 
+  settled   Boolean @default(false)
+
+  expenseId String
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, userId])
+}
+
+model Event {
+  id        String    @id @default(cuid())
+  title     String
+  type      String?
+  color     String?
+  startTime DateTime?
+  endTime   DateTime?
+  location  String?
+
+  tripId    String
+  trip      Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+}
+
+model Accommodation {
+  id                 String    @id @default(cuid())
+  name               String
+  address            String?
+
+  tripId    String
+  trip      Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+}
