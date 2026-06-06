@@ -33,7 +33,7 @@ export function TripsProvider({ children }) {
       startDate:   tripData.startDate || null,
       endDate:     tripData.endDate   || null,
       cover:       tripData.cover     || null,
-      budgetTotal: tripData.budgetTotal ?? tripData.budget?.total ?? null,
+      budgetTotal: tripData.budgetTotal ?? tripData.budget?.total ?? 1000,
     })
     setTrips((all) => [newTrip, ...all])
     return newTrip
@@ -133,8 +133,8 @@ export function TripsProvider({ children }) {
   const getTripBudget = useCallback((tripId) => {
     const trip = trips.find((t) => t.id === tripId)
     if (!trip) return { total: 0, spent: 0 }
-    const spent = (trip.expenses || []).reduce((sum, e) => sum + (e.amount || 0), 0)
-    return { total: trip.budgetTotal || 0, spent }
+    const spent = (trip.expenses || []).reduce((sum, e) => sum + Number(e.amount || 0), 0)
+    return { total: trip.budgetTotal ?? 1000, spent }
   }, [trips])
 
   const value = useMemo(() => ({

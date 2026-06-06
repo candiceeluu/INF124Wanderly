@@ -1,7 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Plane, Plus, MapPin, Footprints, Utensils, Briefcase, Clock } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Plane, Plus, MapPin, Footprints, Utensils, Briefcase, Clock, X } from 'lucide-react'
 import TopBar from '../components/TopBar.jsx'
 import TripSubSidebar from '../components/TripSubSidebar.jsx'
 import PageTransition from '../components/PageTransition.jsx'
@@ -24,9 +24,10 @@ function formatRange(s, e) {
 
 export default function TripOverview() {
   const { tripId }                          = useParams()
-  const { getTrip, getTripBudget, refreshTrip, loading } = useTrips()
+  const { getTrip, getTripBudget, refreshTrip, addMember, loading } = useTrips()
   const navigate                            = useNavigate()
   const trip                                = getTrip(tripId)
+  const [showAddMember, setShowAddMember]   = useState(false)
 
   useEffect(() => {
     if (tripId) refreshTrip(tripId)
@@ -139,6 +140,13 @@ export default function TripOverview() {
                 {members.length === 0 && (
                   <p className="text-xs text-white/45">No members yet.</p>
                 )}
+                <button
+                  onClick={() => setShowAddMember(true)}
+                  title="Add member"
+                  className="grid h-12 w-12 place-items-center rounded-full border border-dashed border-white/30 text-white/70 transition hover:border-white hover:bg-white/10 hover:text-white"
+                >
+                  <Plus className="h-5 w-5" />
+                </button>
               </div>
             </Card>
 
@@ -268,7 +276,92 @@ export default function TripOverview() {
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showAddMember && (
+          <AddMemberModal
+            onClose={() => setShowAddMember(false)}
+            onSave={async (email) => {
+              await addMember(tripId, email)
+              setShowAddMember(false)
+            }}
+          />
+        )}
+      </AnimatePresence>
     </PageTransition>
+  )
+}
+
+function AddMemberModal({ onClose, onSave }) {
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (!email.trim()) return
+    setBusy(true)
+    setError(null)
+    try {
+      await onSave(email.trim())
+    } catch (err) {
+      setError(err.message || 'Could not add member')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-50 grid place-items-center bg-ink-900/60 px-4 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.96, y: 12, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        exit={{ scale: 0.96, y: 12, opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-2xl bg-white p-5 text-ink-900 shadow-2xl"
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <h4 className="font-display text-lg font-bold">Add Member</h4>
+          <button
+            onClick={onClose}
+            className="grid h-8 w-8 place-items-center rounded-full hover:bg-ink-900/5"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <form onSubmit={submit} className="space-y-3">
+          <label className="block">
+            <span className="mb-1 block text-xs text-ink-900/60">Email</span>
+            <input
+              autoFocus
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="friend@example.com"
+              className="field"
+            />
+          </label>
+          {error && (
+            <p className="rounded-lg bg-dolly-50 px-3 py-2 text-xs text-dolly-700">
+              {error}
+            </p>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} className="btn">Cancel</button>
+            <button type="submit" disabled={busy} className="btn-primary disabled:opacity-60">
+              {busy ? 'Adding...' : 'Add'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
   )
 }
 

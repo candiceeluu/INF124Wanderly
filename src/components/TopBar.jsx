@@ -36,7 +36,7 @@ export default function TopBar({ light = false }) {
         light ? 'text-ink-900' : 'text-white'
       }`}
     >
-      <Logo dark={!light} className={light ? 'text-ink-900' : 'text-white'} />
+      <Logo to={user ? '/app' : '/'} dark={!light} className={light ? 'text-ink-900' : 'text-white'} />
       <div className="flex items-center gap-2">
         <div ref={notifRef} className="relative">
           <button
