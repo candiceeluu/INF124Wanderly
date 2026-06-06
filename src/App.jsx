@@ -12,7 +12,8 @@ import NewTrip from './pages/NewTrip.jsx'
 import TripOverview from './pages/TripOverview.jsx'
 import Schedule from './pages/Schedule.jsx'
 import Budget from './pages/Budget.jsx'
-import AppShell from './components/AppShell.jsx'  
+import AppShell from './components/AppShell.jsx'
+import OfflineBanner from './components/OfflineBanner.jsx'
 
 function RequireAuth({ children }) {
   const { user } = useAuth()                               
@@ -25,7 +26,9 @@ export default function App() {
   const location = useLocation()
 
   return (
-    <AnimatePresence mode="wait">
+    <>
+      <OfflineBanner />
+      <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
@@ -50,5 +53,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AnimatePresence>
+    </>
   )
 }
