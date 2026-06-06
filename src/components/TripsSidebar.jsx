@@ -11,6 +11,7 @@ import { useTrips } from '../contexts/TripsContext.jsx'
 // Initials — tiny helper component that renders the first letters of the
 // first two words of `name` (e.g. "Taipei Trip 2026" → "TT") for the trip tile.
 function Initials({ name }) {
+  if (!name) return null
   const parts = name.trim().split(/\s+/)
   const text = (parts[0]?.[0] || '') + (parts[1]?.[0] || '')
   return <span className="text-[11px] font-bold text-white">{text.toUpperCase()}</span>
@@ -47,10 +48,10 @@ export default function TripsSidebar() {
             <Link
               key={t.id}
               to={`/app/trips/${t.id}`}
-              title={t.name}
-              className={`group relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br ${t.color} text-white shadow-card transition hover:rounded-xl ${
-                active ? 'ring-2 ring-inset ring-white' : ''
-              }`}
+              title={t.title}
+            className={`group relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-brand-400 to-brand-700 text-white shadow-card transition hover:rounded-xl ${
+              active ? 'ring-2 ring-inset ring-white' : ''
+            }`}
             >
               {t.cover ? (
                 <img
@@ -61,13 +62,13 @@ export default function TripsSidebar() {
               ) : null}
               <span className="absolute inset-0 bg-ink-900/30" />
               <span className="relative">
-                <Initials name={t.name} />
+                <Initials name={t.title} />
               </span>
               {active && (
                 <span className="absolute -left-2 top-1/2 h-7 w-1.5 -translate-y-1/2 rounded-r bg-white" />
               )}
               <span className="pointer-events-none absolute left-full ml-3 hidden whitespace-nowrap rounded-md bg-ink-800 px-2 py-1 text-[11px] font-medium text-white shadow-lg group-hover:block">
-                {t.name}
+                {t.title}
               </span>
             </Link>
           )

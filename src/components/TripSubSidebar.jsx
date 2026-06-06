@@ -4,14 +4,13 @@
 // left edge with icons for the four sub-views plus a settings shortcut.
 // ============================================================================
 import { NavLink } from 'react-router-dom'
-import { Home, CalendarDays, Wallet, Activity as ActivityIcon, Settings } from 'lucide-react'
+import { Home, CalendarDays, Wallet, Settings } from 'lucide-react'
 
 // Sub-routes within a trip — `to: ''` means the trip overview itself.
 const items = [
   { to: '', icon: Home, label: 'home' },
   { to: 'schedule', icon: CalendarDays, label: 'sched' },
   { to: 'budget', icon: Wallet, label: 'budget' },
-  { to: 'activity', icon: ActivityIcon, label: 'activity' },
 ]
 
 // TripSubSidebar — receives the current trip id from the parent page so it

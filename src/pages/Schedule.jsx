@@ -10,101 +10,147 @@ import {
   Trash2,
   Search,
   CalendarDays,
+  Loader2,
 } from 'lucide-react'
 import TopBar from '../components/TopBar.jsx'
 import TripSubSidebar from '../components/TripSubSidebar.jsx'
 import PageTransition from '../components/PageTransition.jsx'
 import { useTrips } from '../contexts/TripsContext.jsx'
+import { useAuth } from '../contexts/AuthContext.jsx'
 
 // ============================================================================
 // Schedule.jsx — /app/trips/:tripId/schedule. Weekly calendar view.
 // Left: 7-day grid (6 AM – 5 PM) with absolutely-positioned event blocks.
-// Right: AI recommendations panel; each one has an "Add" button that
-// pushes a new event onto the trip via TripsContext.addEvent().
+// Right: AI recommendations panel powered by the Gemini API.
 // ============================================================================
 
-const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-const HOURS = Array.from({ length: 12 }, (_, i) => i + 6) // calendar rows: 6am - 5pm
+const DAYS  = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+const HOURS = Array.from({ length: 12 }, (_, i) => i + 6) // 6am – 5pm
 
 const RECO_TAGS = ['All', 'Food', 'Activities', 'Low budget', 'Near hotel']
 
-// startOfWeek — snap a date back to the previous Sunday at 00:00 so that
-// the calendar grid always renders a complete week regardless of click date.
 function startOfWeek(date) {
   const d = new Date(date)
-  const day = d.getDay()
-  d.setDate(d.getDate() - day)
+  d.setDate(d.getDate() - d.getDay())
   d.setHours(0, 0, 0, 0)
   return d
 }
 
-// fmtDay — render just the day-of-month number for the column headers.
 function fmtDay(d) {
   return d.toLocaleDateString(undefined, { day: 'numeric' })
 }
 
-// timeToY — convert an "HH:MM" string into a pixel offset from the top
-// of the calendar grid (used to absolute-position event blocks).
-// Each hour row is 56px tall.
-function timeToY(t) {
-  const [h, m] = t.split(':').map(Number)
+// timeToY — converts a DateTime string into a pixel offset from the top
+// of the calendar grid. Each hour row is 56px tall, grid starts at 6am.
+function timeToY(isoString) {
+  if (!isoString) return 0
+  const d     = new Date(isoString)
+  const h     = d.getHours()
+  const m     = d.getMinutes()
   const start = HOURS[0]
   return ((h - start) + m / 60) * 56
 }
 
-// Schedule — main exported page. Holds calendar navigation state and
-// dispatches event CRUD into TripsContext.
+// fmtTime — format a DateTime string as "9:00 AM"
+function fmtTime(isoString) {
+  if (!isoString) return ''
+  return new Date(isoString).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
+// dateKey — extract yyyy-mm-dd from a DateTime string in local time
+function dateKey(isoString) {
+  if (!isoString) return ''
+  const d = new Date(isoString)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// toISOLocal — combine a date string (yyyy-mm-dd) and time string (HH:MM)
+// into a full ISO DateTime string for sending to the API.
+function toISOLocal(dateStr, timeStr) {
+  return new Date(`${dateStr}T${timeStr}:00`).toISOString()
+}
+
 export default function Schedule() {
-  const { tripId } = useParams()
-  const { getTrip, addEvent, updateEvent, removeEvent, recommendations } = useTrips()
-  const trip = getTrip(tripId)
+  const { tripId }                                = useParams()
+  const { getTrip, addEvent, updateEvent, removeEvent } = useTrips()
+  const { token }                                 = useAuth()
+  const trip                                      = getTrip(tripId)
 
-  // Calendar starts on the trip's start date (or today, if no trip).
-  const initial = trip?.startDate ? new Date(trip.startDate) : new Date()
-  const [weekStart, setWeekStart] = useState(startOfWeek(initial))   // anchor for the visible 7-day window
-  const [activeTag, setActiveTag] = useState('All')                  // selected filter chip in the reco list
-  const [search, setSearch] = useState('')                           // recommendation search input
+  const initial   = trip?.startDate ? new Date(trip.startDate) : new Date()
+  const [weekStart, setWeekStart] = useState(startOfWeek(initial))
+  const [activeTag, setActiveTag] = useState('All')
+  const [search,    setSearch]    = useState('')
 
-  // Modal/menu state. Only one of these is non-null at a time:
-  const [editing, setEditing] = useState(null)   // an event being edited in the modal
-  const [details, setDetails] = useState(null)   // an event whose details modal is open
-  const [menuId, setMenuId] = useState(null)     // id of event whose ⋯ menu is open
-  const [adding, setAdding] = useState(false)    // true when the "new event" modal is open
+  const [editing,  setEditing]  = useState(null)
+  const [details,  setDetails]  = useState(null)
+  const [menuId,   setMenuId]   = useState(null)
+  const [adding,   setAdding]   = useState(false)
+
+  // AI recommendations state
+  const [recos,        setRecos]        = useState([])
+  const [recosLoading, setRecosLoading] = useState(false)
+  const [recosError,   setRecosError]   = useState(null)
+  const [recosFetched, setRecosFetched] = useState(false)
 
   if (!trip) return <PageTransition>Trip not found.</PageTransition>
 
-  // Build the 7 Date objects shown across the column headers.
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart)
     d.setDate(d.getDate() + i)
     return d
   })
 
-  // eventsByDay — group trip.events into buckets keyed by yyyy-mm-dd so the
-  // render loop can just look up `eventsByDay[dayKey]` for each column.
+  // Group events by local date key for the calendar columns
   const eventsByDay = useMemo(() => {
     const map = {}
-    days.forEach((d) => (map[d.toISOString().slice(0, 10)] = []))
-    trip.events.forEach((e) => {
-      if (map[e.date]) map[e.date].push(e)
+    days.forEach((d) => {
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      map[k] = []
+    })
+    ;(trip.events || []).forEach((e) => {
+      const k = dateKey(e.startTime)
+      if (map[k]) map[k].push(e)
     })
     return map
   }, [trip.events, weekStart])
 
-  // filteredRecos — apply the active tag chip and the search-box filter
-  // to the static seedRecommendations list.
-  const filteredRecos = recommendations.filter((r) => {
-    const matchTag =
-      activeTag === 'All' ||
-      r.tag === activeTag.toLowerCase() ||
-      (activeTag === 'Activities' && r.tag === 'activity')
-    const matchSearch = r.title.toLowerCase().includes(search.toLowerCase())
-    return matchTag && matchSearch
-  })
+  const monthLabel = weekStart.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 
-  const monthLabel = weekStart.toLocaleDateString(undefined, {
-    month: 'long',
-    year: 'numeric',
+  // fetchRecos — calls the Gemini API via our backend to get AI recommendations
+  // for this trip's destination. Only fetches once per page load.
+  const fetchRecos = async () => {
+    if (recosFetched || recosLoading) return
+    setRecosLoading(true)
+    setRecosError(null)
+    try {
+      const res = await fetch('/api/recommendations', {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          destination: trip.destination,
+          startDate:   trip.startDate,
+          endDate:     trip.endDate,
+        }),
+      })
+      if (!res.ok) throw new Error('Failed to fetch recommendations')
+      const data = await res.json()
+      setRecos(data.recommendations || [])
+      setRecosFetched(true)
+    } catch (err) {
+      setRecosError(err.message)
+    } finally {
+      setRecosLoading(false)
+    }
+  }
+
+  // filteredRecos — apply tag and search filters to the fetched recommendations
+  const filteredRecos = recos.filter((r) => {
+    const matchTag    = activeTag === 'All' || r.category?.toLowerCase() === activeTag.toLowerCase()
+    const matchSearch = r.name?.toLowerCase().includes(search.toLowerCase())
+    return matchTag && matchSearch
   })
 
   return (
@@ -114,7 +160,8 @@ export default function Schedule() {
 
       <div className="px-6 pb-12 pl-20 md:pl-24">
         <div className="mx-auto grid max-w-[1500px] gap-5 lg:grid-cols-[1fr_360px]">
-          {/* Calendar */}
+
+          {/* ── Calendar ── */}
           <section className="card-dark overflow-hidden p-5">
             {/* Toolbar */}
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -191,11 +238,12 @@ export default function Schedule() {
                   </div>
                 ))}
               </div>
+
               {days.map((d) => {
-                const key = d.toISOString().slice(0, 10)
+                const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
                 return (
                   <div
-                    key={key}
+                    key={k}
                     className="relative bg-ink-900"
                     style={{ height: HOURS.length * 56 }}
                   >
@@ -206,9 +254,9 @@ export default function Schedule() {
                         style={{ top: i * 56 }}
                       />
                     ))}
-                    {(eventsByDay[key] || []).map((ev) => {
-                      const top = timeToY(ev.start)
-                      const bottom = timeToY(ev.end)
+                    {(eventsByDay[k] || []).map((ev) => {
+                      const top    = timeToY(ev.startTime)
+                      const bottom = timeToY(ev.endTime)
                       const height = Math.max(28, bottom - top)
                       return (
                         <motion.div
@@ -221,11 +269,9 @@ export default function Schedule() {
                         >
                           <div className="flex items-start justify-between gap-1">
                             <div className="min-w-0">
-                              <div className="truncate font-semibold leading-tight">
-                                {ev.title}
-                              </div>
+                              <div className="truncate font-semibold leading-tight">{ev.title}</div>
                               <div className="text-[10px] opacity-80">
-                                {ev.start}–{ev.end}
+                                {fmtTime(ev.startTime)}–{fmtTime(ev.endTime)}
                               </div>
                             </div>
                             <button
@@ -245,31 +291,19 @@ export default function Schedule() {
                               className="absolute right-0 top-7 z-10 w-32 overflow-hidden rounded-lg bg-white text-ink-900 shadow-xl ring-1 ring-black/5"
                             >
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setMenuId(null)
-                                  setEditing(ev)
-                                }}
+                                onClick={(e) => { e.stopPropagation(); setMenuId(null); setEditing(ev) }}
                                 className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-ink-900/5"
                               >
                                 <Pencil className="h-3 w-3" /> Edit time
                               </button>
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setMenuId(null)
-                                  setDetails(ev)
-                                }}
+                                onClick={(e) => { e.stopPropagation(); setMenuId(null); setDetails(ev) }}
                                 className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-ink-900/5"
                               >
                                 <Search className="h-3 w-3" /> View details
                               </button>
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setMenuId(null)
-                                  removeEvent(tripId, ev.id)
-                                }}
+                                onClick={(e) => { e.stopPropagation(); setMenuId(null); removeEvent(tripId, ev.id) }}
                                 className="flex w-full items-center gap-2 px-3 py-2 text-xs text-dolly-700 hover:bg-dolly-50"
                               >
                                 <Trash2 className="h-3 w-3" /> Remove
@@ -285,7 +319,7 @@ export default function Schedule() {
             </div>
           </section>
 
-          {/* AI Recommendations */}
+          {/* ── AI Recommendations ── */}
           <aside className="card-dark p-5">
             <div className="mb-4 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-dolly-400 text-white">
@@ -301,8 +335,15 @@ export default function Schedule() {
               >
                 <Search className="h-3 w-3" /> Search
               </button>
-              <button className="flex flex-1 items-center justify-center gap-1 rounded-full bg-white/10 py-1.5 text-white/85 hover:bg-white/15">
-                <Plus className="h-3 w-3" /> Manual Add
+              <button
+                onClick={fetchRecos}
+                disabled={recosLoading || recosFetched}
+                className="flex flex-1 items-center justify-center gap-1 rounded-full bg-brand-600 py-1.5 text-white transition hover:bg-brand-700 disabled:opacity-60"
+              >
+                {recosLoading
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : <Plus className="h-3 w-3" />}
+                {recosLoading ? 'Loading...' : recosFetched ? 'Loaded' : 'Get ideas'}
               </button>
             </div>
 
@@ -329,46 +370,51 @@ export default function Schedule() {
               ))}
             </div>
 
+            {recosError && (
+              <div className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                {recosError}
+              </div>
+            )}
+
+            {!recosFetched && !recosLoading && (
+              <div className="mt-6 rounded-xl border border-dashed border-white/15 p-6 text-center text-xs text-white/55">
+                Click "Get ideas" to get AI-powered recommendations for {trip.destination}.
+              </div>
+            )}
+
             <ul className="mt-4 space-y-3">
-              {filteredRecos.map((r) => (
+              {filteredRecos.map((r, i) => (
                 <motion.li
-                  key={r.id}
+                  key={r.id || i}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="rounded-xl bg-white/5 p-3 ring-1 ring-white/5 transition hover:bg-white/10"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2">
-                      <div className="grid h-7 w-7 place-items-center rounded-full bg-white/10 text-base">
-                        {r.icon}
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold">{r.title}</div>
-                        <div className="text-[11px] leading-snug text-white/65">
-                          {r.subtitle}
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold">{r.name}</div>
+                      <div className="text-[11px] leading-snug text-white/65">{r.description}</div>
+                      {r.duration && (
+                        <div className="mt-1 text-[10px] italic text-white/45">
+                          Duration: {r.duration}
                         </div>
-                        <div className="mt-1.5 text-[10px] italic text-white/45">
-                          Time: {r.time}
-                        </div>
-                      </div>
+                      )}
+                      {r.priceRange && (
+                        <div className="text-[10px] text-white/45">{r.priceRange}</div>
+                      )}
                     </div>
                     <button
                       onClick={() => {
-                        const [s, e] = r.time.split(' – ')
-                        const to24 = (t) => {
-                          const [hm, ap] = t.trim().split(' ')
-                          let [h, m] = hm.split(':').map(Number)
-                          if (ap?.toLowerCase() === 'pm' && h !== 12) h += 12
-                          if (ap?.toLowerCase() === 'am' && h === 12) h = 0
-                          return `${String(h).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`
-                        }
+                        // Add this recommendation as an event on day 3 of the visible week at 10am
+                        const day  = days[2]
+                        const date = day.toISOString().slice(0, 10)
                         addEvent(tripId, {
-                          title: r.title,
-                          date: days[2].toISOString().slice(0, 10),
-                          start: to24(s),
-                          end: to24(e),
-                          type: r.tag === 'activity' ? 'activity' : r.tag,
-                          color: 'bg-saffron-300/90 text-ink-900',
+                          title:     r.name,
+                          type:      r.category?.toLowerCase() || 'activity',
+                          color:     'bg-saffron-300/90 text-ink-900',
+                          startTime: toISOLocal(date, '10:00'),
+                          endTime:   toISOLocal(date, '12:00'),
+                          location:  r.location || null,
                         })
                       }}
                       className="rounded-full bg-brand-500 px-3 py-1 text-[11px] font-semibold text-white transition hover:bg-brand-600"
@@ -378,7 +424,7 @@ export default function Schedule() {
                   </div>
                 </motion.li>
               ))}
-              {filteredRecos.length === 0 && (
+              {recosFetched && filteredRecos.length === 0 && (
                 <li className="rounded-lg border border-dashed border-white/15 p-6 text-center text-xs text-white/55">
                   No recommendations match.
                 </li>
@@ -388,16 +434,13 @@ export default function Schedule() {
         </div>
       </div>
 
-      {/* Edit modal */}
+      {/* ── Modals ── */}
       <AnimatePresence>
         {editing && (
-          <Modal onClose={() => setEditing(null)} title="Edit Time">
+          <Modal onClose={() => setEditing(null)} title="Edit Event">
             <EventForm
               event={editing}
-              onSave={(patch) => {
-                updateEvent(tripId, editing.id, patch)
-                setEditing(null)
-              }}
+              onSave={(patch) => { updateEvent(tripId, editing.id, patch); setEditing(null) }}
               onCancel={() => setEditing(null)}
             />
           </Modal>
@@ -406,17 +449,14 @@ export default function Schedule() {
           <Modal onClose={() => setAdding(false)} title="New Event">
             <EventForm
               event={{
-                title: '',
-                date: days[0].toISOString().slice(0, 10),
-                start: '09:00',
-                end: '10:00',
-                type: 'activity',
-                color: 'bg-caper-300/90 text-ink-900',
+                title:     '',
+                date:      days[0].toISOString().slice(0, 10),
+                startTime: '09:00',
+                endTime:   '10:00',
+                type:      'activity',
+                color:     'bg-caper-300/90 text-ink-900',
               }}
-              onSave={(patch) => {
-                addEvent(tripId, patch)
-                setAdding(false)
-              }}
+              onSave={(patch) => { addEvent(tripId, patch); setAdding(false) }}
               onCancel={() => setAdding(false)}
             />
           </Modal>
@@ -425,28 +465,20 @@ export default function Schedule() {
           <Modal onClose={() => setDetails(null)} title={details.title}>
             <div className="space-y-2 text-sm">
               <div className="text-ink-900/65">
-                {details.start} – {details.end}
+                {fmtTime(details.startTime)} – {fmtTime(details.endTime)}
               </div>
-              <div className="text-ink-900/65">{details.date}</div>
-              <p className="text-ink-900/80">
-                Visit and enjoy this event with your crew. Tap edit to adjust the time, or remove
-                if your plans change.
-              </p>
+              {details.location && (
+                <div className="text-ink-900/65">{details.location}</div>
+              )}
               <div className="mt-4 flex gap-2">
                 <button
-                  onClick={() => {
-                    setDetails(null)
-                    setEditing(details)
-                  }}
+                  onClick={() => { setDetails(null); setEditing(details) }}
                   className="btn-primary"
                 >
                   <Pencil className="h-3.5 w-3.5" /> Edit time
                 </button>
                 <button
-                  onClick={() => {
-                    removeEvent(tripId, details.id)
-                    setDetails(null)
-                  }}
+                  onClick={() => { removeEvent(tripId, details.id); setDetails(null) }}
                   className="btn"
                 >
                   <Trash2 className="h-3.5 w-3.5 text-dolly-600" /> Remove
@@ -460,9 +492,6 @@ export default function Schedule() {
   )
 }
 
-// Modal — generic overlay used for editing/adding events and showing details.
-// Click on the backdrop closes; clicks on the inner panel are stopped from
-// bubbling so they don't trigger the backdrop's onClose.
 function Modal({ title, onClose, children }) {
   return (
     <motion.div
@@ -495,15 +524,34 @@ function Modal({ title, onClose, children }) {
   )
 }
 
-// EventForm — controlled form for creating/editing an event. The parent
-// passes in `event` (the starting values) and `onSave`/`onCancel` handlers.
 function EventForm({ event, onSave, onCancel }) {
-  const [form, setForm] = useState(event)   // local working copy; only committed on submit
+  const initDate  = event.startTime
+    ? new Date(event.startTime).toISOString().slice(0, 10)
+    : (event.date || new Date().toISOString().slice(0, 10))
+  const initStart = event.startTime
+    ? new Date(event.startTime).toTimeString().slice(0, 5)
+    : (event.startTime || '09:00')
+  const initEnd   = event.endTime
+    ? new Date(event.endTime).toTimeString().slice(0, 5)
+    : (event.endTime || '10:00')
+
+  const [title, setTitle] = useState(event.title || '')
+  const [date,  setDate]  = useState(initDate)
+  const [start, setStart] = useState(initStart)
+  const [end,   setEnd]   = useState(initEnd)
+  const [type,  setType]  = useState(event.type || 'activity')
+
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault()
-        onSave(form)
+        onSave({
+          title,
+          type,
+          color: event.color || 'bg-caper-300/90 text-ink-900',
+          startTime: toISOLocal(date, start),
+          endTime:   toISOLocal(date, end),
+        })
       }}
       className="space-y-3 text-sm"
     >
@@ -511,18 +559,31 @@ function EventForm({ event, onSave, onCancel }) {
         <span className="mb-1 block text-xs text-ink-900/60">Title</span>
         <input
           required
-          value={form.title}
-          onChange={(e) => setForm({ ...form, title: e.target.value })}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
           className="field"
         />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-xs text-ink-900/60">Type</span>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="field"
+        >
+          <option value="activity">Activity</option>
+          <option value="food">Food</option>
+          <option value="flight">Flight</option>
+          <option value="hotel">Hotel</option>
+        </select>
       </label>
       <label className="block">
         <span className="mb-1 block text-xs text-ink-900/60">Date</span>
         <input
           type="date"
           required
-          value={form.date}
-          onChange={(e) => setForm({ ...form, date: e.target.value })}
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
           className="field"
         />
       </label>
@@ -532,8 +593,8 @@ function EventForm({ event, onSave, onCancel }) {
           <input
             type="time"
             required
-            value={form.start}
-            onChange={(e) => setForm({ ...form, start: e.target.value })}
+            value={start}
+            onChange={(e) => setStart(e.target.value)}
             className="field"
           />
         </label>
@@ -542,19 +603,15 @@ function EventForm({ event, onSave, onCancel }) {
           <input
             type="time"
             required
-            value={form.end}
-            onChange={(e) => setForm({ ...form, end: e.target.value })}
+            value={end}
+            onChange={(e) => setEnd(e.target.value)}
             className="field"
           />
         </label>
       </div>
       <div className="flex justify-end gap-2 pt-2">
-        <button type="button" onClick={onCancel} className="btn">
-          Cancel
-        </button>
-        <button type="submit" className="btn-primary">
-          Save
-        </button>
+        <button type="button" onClick={onCancel} className="btn">Cancel</button>
+        <button type="submit" className="btn-primary">Save</button>
       </div>
     </form>
   )

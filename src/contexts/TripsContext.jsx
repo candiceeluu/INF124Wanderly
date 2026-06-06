@@ -1,296 +1,176 @@
-// ============================================================================
-// TripsContext.jsx — The application's primary data store.
-// Holds every trip (with nested events, expenses, members, debts, activity)
-// plus the notification feed. State is persisted to localStorage on every
-// change, so the app behaves like it has a backend without one.
-//
-// Exposes a CRUD-style API via useTrips() so pages don't manipulate state
-// directly — they call addEvent / removeExpense / setBudgetTotal / etc.
-// ============================================================================
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { seedTrips, seedNotifications, seedRecommendations } from '../data/seedData.js'
+import { tripsApi, eventsApi, expensesApi, membersApi } from '../lib/api.js'
+import { useAuth } from './AuthContext.jsx'
 
 const TripsContext = createContext(null)
-const STORAGE_KEY = 'wanderly.trips.v2'         // versioned key — bump to invalidate old saved data
-const NOTIF_KEY = 'wanderly.notifs.v2'
-
-// uid — generate a short random unique id with an optional prefix.
-// Used for new trips, events, expenses, members, and activity rows.
-const uid = (p = 'id') => `${p}_${Math.random().toString(36).slice(2, 9)}`
 
 export function TripsProvider({ children }) {
-  // ---- Persistent state ---------------------------------------------------
-  // Trip list — rehydrate from localStorage on first render, fall back to seed data.
-  const [trips, setTrips] = useState(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) return JSON.parse(raw)
-    } catch {}
-    return seedTrips
-  })
+  const { user, token } = useAuth()
 
-  // Notifications — same pattern as trips, separate key.
-  const [notifications, setNotifications] = useState(() => {
-    try {
-      const raw = localStorage.getItem(NOTIF_KEY)
-      if (raw) return JSON.parse(raw)
-    } catch {}
-    return seedNotifications
-  })
-
-  // Write-through effects: any change to trips/notifications is mirrored to localStorage.
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(trips))
-  }, [trips])
+  const [trips,         setTrips]         = useState([])
+  const [loading,       setLoading]       = useState(false)
+  const [error,         setError]         = useState(null)
 
   useEffect(() => {
-    localStorage.setItem(NOTIF_KEY, JSON.stringify(notifications))
-  }, [notifications])
+    if (!user || !token) {
+      setTrips([])
+      return
+    }
 
-  // ---- Trip CRUD ----------------------------------------------------------
-  // getTrip — find a trip by id; memoized so consumers don't rebuild every render.
+    setLoading(true)
+    tripsApi.getAll()
+      .then((data) => setTrips(data))
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [user, token])
+
   const getTrip = useCallback((id) => trips.find((t) => t.id === id), [trips])
 
-  // addTrip — insert a new trip at the top of the list. Fills in safe defaults
-  // for any field the caller omits (cover image, empty arrays, default budget).
-  const addTrip = useCallback((trip) => {
-    const id = trip.id || uid('trip')
-    const newTrip = {
-      id,
-      name: trip.name || 'Untitled Trip',
-      location: trip.location || '',
-      startDate: trip.startDate || '',
-      endDate: trip.endDate || '',
-      cover:
-        trip.cover ||
-        'https://images.unsplash.com/photo-1500835556837-99ac94a94552?auto=format&fit=crop&w=1600&q=80',
-      color: trip.color || 'from-brand-400 to-brand-700',
-      budget: { total: 1000, spent: 0 },
-      members: trip.members || [],
-      accommodations: [],
-      events: [],
-      expenses: [],
-      debts: [],
-      activity: [],
-      ...trip,
-    }
+  const addTrip = useCallback(async (tripData) => {
+    const newTrip = await tripsApi.create({
+      title:       tripData.title || tripData.name || 'Untitled Trip',
+      destination: tripData.destination || tripData.location || '',
+      startDate:   tripData.startDate || null,
+      endDate:     tripData.endDate   || null,
+      cover:       tripData.cover     || null,
+      budgetTotal: tripData.budgetTotal ?? tripData.budget?.total ?? null,
+    })
     setTrips((all) => [newTrip, ...all])
     return newTrip
   }, [])
 
-  // updateTrip — patch one trip. Accepts either a shallow-merge object OR
-  // a transformer function (t) => newTrip for more complex updates like
-  // appending to nested arrays.
-  const updateTrip = useCallback((id, patch) => {
-    setTrips((all) =>
-      all.map((t) => (t.id === id ? (typeof patch === 'function' ? patch(t) : { ...t, ...patch }) : t)),
-    )
+  const updateTrip = useCallback(async (id, patch) => {
+    const updated = await tripsApi.update(id, patch)
+    setTrips((all) => all.map((t) => (t.id === id ? { ...t, ...updated } : t)))
+    return updated
   }, [])
 
-  // removeTrip — delete a trip by id (currently unused by the UI but exposed).
-  const removeTrip = useCallback((id) => {
+  const removeTrip = useCallback(async (id) => {
+    await tripsApi.delete(id)
     setTrips((all) => all.filter((t) => t.id !== id))
   }, [])
 
-  // ---- Sub-resource helpers ----------------------------------------------
-  // Each helper below mutates a slice of one trip (events/expenses/etc) AND,
-  // where relevant, appends a row to that trip's activity log so the
-  // Activity page shows a timeline of changes.
+  const refreshTrip = useCallback(async (id) => {
+    const fresh = await tripsApi.getById(id)
+    setTrips((all) => all.map((t) => (t.id === id ? fresh : t)))
+    return fresh
+  }, [])
 
-  // addEvent — push a new calendar event onto a trip and log "Added X to schedule".
-  const addEvent = useCallback(
-    (tripId, event) => {
-      const e = { id: uid('e'), color: 'bg-brand-200 text-ink-900', ...event }
-      updateTrip(tripId, (t) => ({
-        ...t,
-        events: [...t.events, e],
-        activity: [
-          {
-            id: uid('act'),
-            date: new Date().toISOString().slice(0, 10),
-            time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-            user: 'You',
-            text: `Added ${e.title} to schedule`,
-          },
-          ...t.activity,
-        ],
-      }))
-    },
-    [updateTrip],
-  )
+  const addEvent = useCallback(async (tripId, event) => {
+    await eventsApi.create(tripId, {
+      title:     event.title,
+      type:      event.type      || null,
+      color:     event.color     || null,
+      location:  event.location  || null,
+      startTime: event.startTime || event.start || null,
+      endTime:   event.endTime   || event.end   || null,
+    })
+    await refreshTrip(tripId)
+  }, [refreshTrip])
 
-  // updateEvent — patch a single event inside a trip (title/time/etc).
-  const updateEvent = useCallback(
-    (tripId, eventId, patch) => {
-      updateTrip(tripId, (t) => ({
-        ...t,
-        events: t.events.map((e) => (e.id === eventId ? { ...e, ...patch } : e)),
-      }))
-    },
-    [updateTrip],
-  )
+  const updateEvent = useCallback(async (tripId, eventId, patch) => {
+    await eventsApi.update(eventId, patch)
+    await refreshTrip(tripId)
+  }, [refreshTrip])
 
-  // removeEvent — delete an event from a trip's schedule.
-  const removeEvent = useCallback(
-    (tripId, eventId) => {
-      updateTrip(tripId, (t) => ({
-        ...t,
-        events: t.events.filter((e) => e.id !== eventId),
-      }))
-    },
-    [updateTrip],
-  )
+  const removeEvent = useCallback(async (tripId, eventId) => {
+    await eventsApi.delete(eventId)
+    await refreshTrip(tripId)
+  }, [refreshTrip])
 
-  // addExpense — record a new expense, bump trip.budget.spent, and log activity.
-  const addExpense = useCallback(
-    (tripId, expense) => {
-      const e = { id: uid('x'), ...expense }
-      updateTrip(tripId, (t) => ({
-        ...t,
-        expenses: [e, ...t.expenses],
-        budget: { ...t.budget, spent: (t.budget?.spent || 0) + Number(e.amount || 0) },
-        activity: [
-          {
-            id: uid('act'),
-            date: new Date().toISOString().slice(0, 10),
-            time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-            user: 'You',
-            text: `Added expense ${e.name} ($${e.amount})`,
-          },
-          ...t.activity,
-        ],
-      }))
-    },
-    [updateTrip],
-  )
+  const addExpense = useCallback(async (tripId, expense) => {
+    const trip = trips.find((t) => t.id === tripId)
 
-  // updateExpense — patch an expense; also reconciles budget.spent by
-  // subtracting the old amount and adding the new one (keeps totals in sync).
-  const updateExpense = useCallback(
-    (tripId, expenseId, patch) => {
-      updateTrip(tripId, (t) => {
-        const old = t.expenses.find((x) => x.id === expenseId)
-        const oldAmt = Number(old?.amount || 0)
-        const newAmt = Number(patch.amount ?? oldAmt)
-        return {
-          ...t,
-          expenses: t.expenses.map((x) => (x.id === expenseId ? { ...x, ...patch } : x)),
-          budget: { ...t.budget, spent: (t.budget?.spent || 0) - oldAmt + newAmt },
-        }
-      })
-    },
-    [updateTrip],
-  )
+    const paidById = expense.paidById || user?.id
 
-  // removeExpense — delete an expense and refund its amount from budget.spent
-  // (clamped at 0 to avoid negative spent values).
-  const removeExpense = useCallback(
-    (tripId, expenseId) => {
-      updateTrip(tripId, (t) => {
-        const old = t.expenses.find((x) => x.id === expenseId)
-        const amt = Number(old?.amount || 0)
-        return {
-          ...t,
-          expenses: t.expenses.filter((x) => x.id !== expenseId),
-          budget: { ...t.budget, spent: Math.max(0, (t.budget?.spent || 0) - amt) },
-        }
-      })
-    },
-    [updateTrip],
-  )
+    const participants = expense.participants?.length
+      ? expense.participants
+      : (trip?.members || []).map((m) => ({ userId: m.userId || m.user?.id || m.id }))
 
-  // setBudgetTotal — change a trip's total budget cap (used by Budget edit modal).
-  const setBudgetTotal = useCallback(
-    (tripId, total) => {
-      updateTrip(tripId, (t) => ({ ...t, budget: { ...t.budget, total: Number(total) } }))
-    },
-    [updateTrip],
-  )
+    await expensesApi.create(tripId, {
+      name:         expense.name,
+      amount:       Number(expense.amount),
+      category:     expense.category  || null,
+      splitType:    expense.splitType || 'EQUAL',
+      date:         expense.date      || null,
+      paidById,
+      participants,
+    })
+    await refreshTrip(tripId)
+  }, [trips, user, refreshTrip])
 
-  // addMember — invite someone to a trip. Auto-generates an avatar URL from
-  // the dicebear "initials" service if no avatar is provided.
-  const addMember = useCallback(
-    (tripId, member) => {
-      const m = {
-        id: uid('m'),
-        avatar:
-          member.avatar ||
-          `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(member.name || 'guest')}`,
-        ...member,
-      }
-      updateTrip(tripId, (t) => ({ ...t, members: [...t.members, m] }))
-    },
-    [updateTrip],
-  )
+  const updateExpense = useCallback(async (tripId, expenseId, patch) => {
+    await expensesApi.update(expenseId, patch)
+    await refreshTrip(tripId)
+  }, [refreshTrip])
 
-  // removeMember — kick someone out of a trip.
-  const removeMember = useCallback(
-    (tripId, memberId) => {
-      updateTrip(tripId, (t) => ({ ...t, members: t.members.filter((m) => m.id !== memberId) }))
-    },
-    [updateTrip],
-  )
+  const removeExpense = useCallback(async (tripId, expenseId) => {
+    await expensesApi.delete(expenseId)
+    await refreshTrip(tripId)
+  }, [refreshTrip])
 
-  // ---- Notifications ------------------------------------------------------
-  // markNotifRead — flip a single notification's `read` flag to true.
-  const markNotifRead = useCallback(
-    (id) =>
-      setNotifications((arr) => arr.map((n) => (n.id === id ? { ...n, read: true } : n))),
-    [],
-  )
-  // markAllNotifsRead — bulk mark every notification as read (used by TopBar).
-  const markAllNotifsRead = useCallback(
-    () => setNotifications((arr) => arr.map((n) => ({ ...n, read: true }))),
-    [],
-  )
+  const settleExpense = useCallback(async (tripId, expenseId, userId) => {
+    await expensesApi.settle(expenseId, userId)
+    await refreshTrip(tripId)
+  }, [refreshTrip])
 
-  // value — the object handed to every consumer via useTrips(). Memoized so
-  // consumers don't re-render unless the underlying state actually changed.
-  const value = useMemo(
-    () => ({
-      trips,
-      getTrip,
-      addTrip,
-      updateTrip,
-      removeTrip,
-      addEvent,
-      updateEvent,
-      removeEvent,
-      addExpense,
-      updateExpense,
-      removeExpense,
-      setBudgetTotal,
-      addMember,
-      removeMember,
-      recommendations: seedRecommendations,
-      notifications,
-      markNotifRead,
-      markAllNotifsRead,
-    }),
-    [
-      trips,
-      getTrip,
-      addTrip,
-      updateTrip,
-      removeTrip,
-      addEvent,
-      updateEvent,
-      removeEvent,
-      addExpense,
-      updateExpense,
-      removeExpense,
-      setBudgetTotal,
-      addMember,
-      removeMember,
-      notifications,
-      markNotifRead,
-      markAllNotifsRead,
-    ],
-  )
+  const setBudgetTotal = useCallback(async (tripId, total) => {
+    await updateTrip(tripId, { budgetTotal: Number(total) })
+  }, [updateTrip])
+
+  const addMember = useCallback(async (tripId, member) => {
+    const email = member.email || member
+    await membersApi.add(tripId, email)
+    await refreshTrip(tripId)
+  }, [refreshTrip])
+
+  const removeMember = useCallback(async (tripId, memberId) => {
+    await membersApi.remove(memberId)
+    await refreshTrip(tripId)
+  }, [refreshTrip])
+
+  
+  const getTripBudget = useCallback((tripId) => {
+    const trip = trips.find((t) => t.id === tripId)
+    if (!trip) return { total: 0, spent: 0 }
+    const spent = (trip.expenses || []).reduce((sum, e) => sum + (e.amount || 0), 0)
+    return { total: trip.budgetTotal || 0, spent }
+  }, [trips])
+
+  const value = useMemo(() => ({
+    trips,
+    loading,
+    error,
+    getTrip,
+    addTrip,
+    updateTrip,
+    removeTrip,
+    refreshTrip,
+    addEvent,
+    updateEvent,
+    removeEvent,
+    addExpense,
+    updateExpense,
+    removeExpense,
+    settleExpense,
+    setBudgetTotal,
+    getTripBudget,
+    addMember,
+    removeMember,
+    notifications:        [],
+    recommendations:      [],
+    markNotifRead:        () => {},
+    markAllNotifsRead:    () => {},
+  }), [
+    trips, loading, error,
+    getTrip, addTrip, updateTrip, removeTrip, refreshTrip,
+    addEvent, updateEvent, removeEvent,
+    addExpense, updateExpense, removeExpense, settleExpense,
+    setBudgetTotal, getTripBudget,
+    addMember, removeMember,
+  ])
 
   return <TripsContext.Provider value={value}>{children}</TripsContext.Provider>
 }
 
-// useTrips — sugar hook for components to grab the trips API in one line.
-// Usage: `const { trips, addEvent, addExpense } = useTrips()`.
 export const useTrips = () => useContext(TripsContext)

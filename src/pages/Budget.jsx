@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts'
@@ -7,48 +7,49 @@ import TopBar from '../components/TopBar.jsx'
 import TripSubSidebar from '../components/TripSubSidebar.jsx'
 import PageTransition from '../components/PageTransition.jsx'
 import { useTrips } from '../contexts/TripsContext.jsx'
+import { useAuth } from '../contexts/AuthContext.jsx'
 
-// ============================================================================
-// Budget.jsx — /app/trips/:tripId/budget. Shows:
-//   • a "spent / total" progress card
-//   • a recharts pie chart of expenses by category
-//   • a "you are owed" list (debts)
-//   • the full expense table with add/edit/delete modals
-// All mutations go through TripsContext (addExpense / updateExpense / etc.)
-// ============================================================================
-
-// Static category → hex color map. Mirrored in the Tailwind theme palette.
 const CATEGORY_COLORS = {
-  food: '#9bc855',     // caper-500
-  shopping: '#FA9397', // dolly-400
-  transport: '#1B729D',// brand-500
-  activity: '#EFCB59', // saffron-400
-  hotel: '#D7C6AC',    // sand
-  misc: '#87c1d6',     // brand-300
+  food:      '#9bc855',
+  shopping:  '#FA9397',
+  transport: '#1B729D',
+  activity:  '#EFCB59',
+  hotel:     '#D7C6AC',
+  misc:      '#87c1d6',
 }
 
 const CATEGORIES = Object.keys(CATEGORY_COLORS)
 
-// Budget — page component. Reads expense/debt data from the trip and
-// dispatches changes through TripsContext.
 export default function Budget() {
-  const { tripId } = useParams()
-  const { getTrip, addExpense, updateExpense, removeExpense, setBudgetTotal } = useTrips()
+  const { tripId }    = useParams()
+  const { user }      = useAuth()
+  const {
+    getTrip,
+    getTripBudget,
+    addExpense,
+    updateExpense,
+    removeExpense,
+    setBudgetTotal,
+    settleExpense,
+    refreshTrip,
+    loading,
+  } = useTrips()
+  
   const trip = getTrip(tripId)
-  const [editing, setEditing] = useState(null)         // expense currently being edited
-  const [adding, setAdding] = useState(false)          // is the "add expense" modal open?
-  const [editingBudget, setEditingBudget] = useState(false) // is the "edit total" modal open?
 
-  if (!trip) return <PageTransition>Trip not found.</PageTransition>
+  const [editing,       setEditing]       = useState(null)
+  const [adding,        setAdding]        = useState(false)
+  const [editingBudget, setEditingBudget] = useState(false)
 
-  const pct = Math.min(100, Math.round((trip.budget.spent / trip.budget.total) * 100))
+  useEffect(() => {
+    if (tripId) refreshTrip(tripId)
+  }, [tripId])
 
-  // pieData — fold trip.expenses into {category, sum} entries for recharts.
-  // Memoized so the chart only recomputes when the expense list changes.
   const pieData = useMemo(() => {
     const acc = {}
-    trip.expenses.forEach((x) => {
-      acc[x.category] = (acc[x.category] || 0) + Number(x.amount)
+    ;(trip.expenses || []).forEach((x) => {
+      const cat = x.category || 'misc'
+      acc[cat] = (acc[cat] || 0) + Number(x.amount)
     })
     return Object.entries(acc).map(([name, value]) => ({
       name,
@@ -56,6 +57,64 @@ export default function Budget() {
       color: CATEGORY_COLORS[name] || '#94a3b8',
     }))
   }, [trip.expenses])
+
+  const owedToMe = useMemo(() => {
+    const result = []
+    ;(trip.expenses || []).forEach((expense) => {
+      if (expense.paidById !== user?.id) return
+      ;(expense.participants || []).forEach((p) => {
+        if (p.userId === user?.id) return       
+        if (p.settled) return                
+        const share = expense.splitType === 'EQUAL'
+          ? expense.amount / (expense.participants?.length || 1)
+          : (p.share || 0)
+        result.push({
+          id:        p.id,
+          expenseId: expense.id,
+          userId:    p.userId,
+          name:      p.user?.name || 'Member',
+          avatar:    p.user?.avatar || null,
+          amount:    share,
+          expense:   expense.name,
+        })
+      })
+    })
+    return result
+  }, [trip.expenses, user])
+
+  if (loading) {
+    return (
+      <PageTransition className="flex flex-1 items-center justify-center">
+        <div className="text-center text-white/55">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
+          <p className="mt-3 text-sm">Loading budget...</p>
+        </div>
+      </PageTransition>
+    )
+  }
+
+  if (!trip) {
+    return (
+      <PageTransition className="flex flex-1 items-center justify-center text-white">
+        <p className="text-sm text-white/70">Trip not found.</p>
+      </PageTransition>
+    )
+  }
+
+  const budget = getTripBudget(tripId)
+
+  const pct = budget.total > 0
+    ? Math.min(100, Math.round((budget.spent / budget.total) * 100))
+    : 0
+
+  const totalOwed = owedToMe.reduce((s, d) => s + d.amount, 0)
+
+  // members in flat shape for the expense modal dropdowns
+  const members = (trip.members || []).map((m) => ({
+    id:     m.userId || m.user?.id || m.id,
+    name:   m.user?.name   || m.name   || 'Member',
+    avatar: m.user?.avatar || m.avatar || null,
+  }))
 
   return (
     <PageTransition className="relative flex flex-1 flex-col">
@@ -67,9 +126,11 @@ export default function Budget() {
           <h1 className="lower font-display text-4xl font-extrabold tracking-tight">budgeting</h1>
 
           <div className="mt-6 grid gap-5 lg:grid-cols-[1.3fr_1fr]">
-            {/* Left column */}
+
+            {/* ── Left column ── */}
             <div className="space-y-5">
-              {/* Top metrics card */}
+
+              {/* Progress card */}
               <motion.div
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -78,7 +139,9 @@ export default function Budget() {
                 <div className="flex items-end justify-between">
                   <div>
                     <div className="text-[11px] uppercase tracking-widest text-white/55">spent</div>
-                    <div className="font-display text-4xl font-extrabold">${trip.budget.spent}</div>
+                    <div className="font-display text-4xl font-extrabold">
+                      ${budget.spent.toFixed(2)}
+                    </div>
                   </div>
                   <div className="text-right">
                     <div className="font-display text-4xl font-extrabold text-caper-400">{pct}%</div>
@@ -101,21 +164,19 @@ export default function Budget() {
                     <Pencil className="h-3 w-3" /> edit total
                   </button>
                   <span>
-                    ${trip.budget.spent} / ${trip.budget.total}
+                    ${budget.spent.toFixed(2)} / ${budget.total.toFixed(2)}
                   </span>
                 </div>
               </motion.div>
 
-              {/* Pie chart */}
+              {/* pie chart */}
               <motion.div
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.05 }}
                 className="card-dark p-5"
               >
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="lower font-display text-lg font-bold">spending by category</h3>
-                </div>
+                <h3 className="lower mb-2 font-display text-lg font-bold">spending by category</h3>
                 <div className="h-72">
                   {pieData.length === 0 ? (
                     <div className="grid h-full place-items-center text-sm text-white/55">
@@ -151,8 +212,8 @@ export default function Budget() {
               </motion.div>
             </div>
 
-            {/* Right column */}
             <div className="space-y-5">
+
               {/* You are owed */}
               <motion.div
                 initial={{ opacity: 0, y: 14 }}
@@ -161,42 +222,52 @@ export default function Budget() {
               >
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="lower font-display text-lg font-bold">you are owed</h3>
-                  <div className="text-right">
-                    <div className="font-display text-2xl font-extrabold text-caper-400">
-                      ${trip.debts.reduce((s, d) => s + Number(d.amount), 0)}
-                    </div>
+                  <div className="font-display text-2xl font-extrabold text-caper-400">
+                    ${totalOwed.toFixed(2)}
                   </div>
                 </div>
                 <ul className="space-y-2">
-                  {trip.debts.length === 0 && (
+                  {owedToMe.length === 0 && (
                     <li className="rounded-lg border border-dashed border-white/15 p-4 text-center text-xs text-white/55">
                       You're all settled up.
                     </li>
                   )}
-                  {trip.debts.map((d) => (
+                  {owedToMe.map((d) => (
                     <li
                       key={d.id}
                       className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2 ring-1 ring-white/5"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-brand-300 to-brand-700 text-xs font-bold text-white">
-                          {d.from
-                            .split(' ')
-                            .map((p) => p[0])
-                            .join('')}
-                        </div>
+                        {d.avatar ? (
+                          <img
+                            src={d.avatar}
+                            alt={d.name}
+                            className="h-9 w-9 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-brand-300 to-brand-700 text-xs font-bold text-white">
+                            {d.name.split(' ').map((p) => p[0]).join('').slice(0, 2)}
+                          </div>
+                        )}
                         <div>
-                          <div className="text-sm font-semibold">{d.from}</div>
-                          <div className="text-[11px] text-white/55">owes you</div>
+                          <div className="text-sm font-semibold">{d.name}</div>
+                          <div className="text-[11px] text-white/55">owes you · {d.expense}</div>
                         </div>
                       </div>
-                      <div className="text-base font-bold">${d.amount}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-base font-bold">${d.amount.toFixed(2)}</div>
+                        <button
+                          onClick={() => settleExpense(tripId, d.expenseId, d.userId)}
+                          className="rounded-full bg-caper-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-caper-700"
+                        >
+                          Settle
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
               </motion.div>
 
-              {/* Expenses */}
               <motion.div
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -214,23 +285,25 @@ export default function Budget() {
                   </button>
                 </div>
                 <ul className="divide-y divide-white/5">
-                  {trip.expenses.map((x) => (
-                    <li
-                      key={x.id}
-                      className="flex items-center gap-3 py-3 text-sm"
-                    >
+                  {(trip.expenses || []).map((x) => (
+                    <li key={x.id} className="flex items-center gap-3 py-3 text-sm">
                       <div className="w-12 text-[11px] uppercase tracking-wider text-white/55">
-                        {new Date(x.date).toLocaleDateString(undefined, {
-                          month: 'numeric',
-                          day: 'numeric',
-                        })}
+                        {x.date
+                          ? new Date(x.date).toLocaleDateString(undefined, {
+                              month: 'numeric',
+                              day:   'numeric',
+                            })
+                          : '—'}
                       </div>
                       <span
-                        className="h-2 w-2 rounded-full"
+                        className="h-2 w-2 shrink-0 rounded-full"
                         style={{ background: CATEGORY_COLORS[x.category] || '#94a3b8' }}
                       />
                       <div className="flex-1 truncate font-medium">{x.name}</div>
-                      <div className="font-semibold">${x.amount}</div>
+                      <div className="text-[11px] text-white/55">
+                        paid by {x.paidBy?.name || 'someone'}
+                      </div>
+                      <div className="font-semibold">${Number(x.amount).toFixed(2)}</div>
                       <button
                         onClick={() => setEditing(x)}
                         className="grid h-7 w-7 place-items-center rounded-full hover:bg-white/10"
@@ -239,7 +312,7 @@ export default function Budget() {
                       </button>
                     </li>
                   ))}
-                  {trip.expenses.length === 0 && (
+                  {(trip.expenses || []).length === 0 && (
                     <li className="py-6 text-center text-xs text-white/55">No expenses yet.</li>
                   )}
                 </ul>
@@ -249,50 +322,38 @@ export default function Budget() {
         </div>
       </div>
 
-      {/* Modals */}
       <AnimatePresence>
         {editingBudget && (
           <BudgetModal
-            current={trip.budget.total}
+            current={budget.total}
             onClose={() => setEditingBudget(false)}
-            onSave={(v) => {
-              setBudgetTotal(tripId, v)
-              setEditingBudget(false)
-            }}
+            onSave={(v) => { setBudgetTotal(tripId, v); setEditingBudget(false) }}
           />
         )}
         {editing && (
           <ExpenseModal
+            title="Edit Expense"
             expense={editing}
-            members={trip.members}
+            members={members}
+            currentUserId={user?.id}
             onClose={() => setEditing(null)}
-            onSave={(patch) => {
-              updateExpense(tripId, editing.id, patch)
-              setEditing(null)
-            }}
-            onDelete={() => {
-              removeExpense(tripId, editing.id)
-              setEditing(null)
-            }}
+            onSave={(patch) => { updateExpense(tripId, editing.id, patch); setEditing(null) }}
+            onDelete={() => { removeExpense(tripId, editing.id); setEditing(null) }}
           />
         )}
         {adding && (
           <ExpenseModal
             title="Add Expense"
-            members={trip.members}
             expense={{
-              date: new Date().toISOString().slice(0, 10),
-              name: '',
+              date:     new Date().toISOString().slice(0, 10),
+              name:     '',
               category: 'food',
-              amount: 0,
-              paidBy: 'you',
-              splitWith: 'equal',
+              amount:   0,
             }}
+            members={members}
+            currentUserId={user?.id}
             onClose={() => setAdding(false)}
-            onSave={(patch) => {
-              addExpense(tripId, patch)
-              setAdding(false)
-            }}
+            onSave={(patch) => { addExpense(tripId, patch); setAdding(false) }}
           />
         )}
       </AnimatePresence>
@@ -300,13 +361,11 @@ export default function Budget() {
   )
 }
 
-// BudgetModal — tiny modal with a number input for changing the trip's total.
-// Local state `v` lets the user type without committing until "Save".
 function BudgetModal({ current, onClose, onSave }) {
   const [v, setV] = useState(current)
   return (
     <Modal title="Edit Budget" onClose={onClose}>
-      <label className="block text-xs text-ink-900/65">Total Budget</label>
+      <label className="block text-xs text-ink-900/65">Total Budget ($)</label>
       <input
         type="number"
         min={0}
@@ -322,20 +381,36 @@ function BudgetModal({ current, onClose, onSave }) {
   )
 }
 
-// ExpenseModal — the add/edit form for one expense. The same component
-// is reused for both "Add" (no `onDelete` passed) and "Edit" (delete shown).
-function ExpenseModal({ expense, members = [], onClose, onSave, onDelete, title = 'Edit Expense' }) {
+function ExpenseModal({ expense, members = [], currentUserId, onClose, onSave, onDelete, title = 'Edit Expense' }) {
   const [form, setForm] = useState({
-    paidBy: 'you',
-    splitWith: 'equal',
-    ...expense,
+    date:     expense.date     ? new Date(expense.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+    name:     expense.name     || '',
+    category: expense.category || 'food',
+    amount:   expense.amount   || 0,
+    paidById: expense.paidById || currentUserId || '',
+    splitType: expense.splitType || 'EQUAL',
   })
+
+  const allMemberIds = [
+    ...(currentUserId ? [currentUserId] : []),
+    ...members.filter((m) => m.id !== currentUserId).map((m) => m.id),
+  ]
+
   return (
     <Modal title={title} onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault()
-          onSave({ ...form, amount: Number(form.amount) })
+          onSave({
+            name:      form.name,
+            amount:    Number(form.amount),
+            category:  form.category,
+            date:      form.date || null,
+            paidById:  form.paidById,
+            splitType: form.splitType,
+            // Default: split equally among all trip members
+            participants: allMemberIds.map((id) => ({ userId: id })),
+          })
         }}
         className="space-y-3 text-sm"
       >
@@ -343,7 +418,6 @@ function ExpenseModal({ expense, members = [], onClose, onSave, onDelete, title 
           <span className="mb-1 block text-xs text-ink-900/60">Date</span>
           <input
             type="date"
-            required
             value={form.date}
             onChange={(e) => setForm({ ...form, date: e.target.value })}
             className="field"
@@ -368,14 +442,12 @@ function ExpenseModal({ expense, members = [], onClose, onSave, onDelete, title 
               className="field"
             >
               {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs text-ink-900/60">Amount</span>
+            <span className="mb-1 block text-xs text-ink-900/60">Amount ($)</span>
             <input
               type="number"
               min={0}
@@ -391,32 +463,29 @@ function ExpenseModal({ expense, members = [], onClose, onSave, onDelete, title 
           <label className="block">
             <span className="mb-1 block text-xs text-ink-900/60">Paid by</span>
             <select
-              value={form.paidBy}
-              onChange={(e) => setForm({ ...form, paidBy: e.target.value })}
+              value={form.paidById}
+              onChange={(e) => setForm({ ...form, paidById: e.target.value })}
               className="field"
             >
-              <option value="you">You</option>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
+              {currentUserId && (
+                <option value={currentUserId}>You</option>
+              )}
+              {members
+                .filter((m) => m.id !== currentUserId)
+                .map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs text-ink-900/60">Split with</span>
+            <span className="mb-1 block text-xs text-ink-900/60">Split</span>
             <select
-              value={form.splitWith}
-              onChange={(e) => setForm({ ...form, splitWith: e.target.value })}
+              value={form.splitType}
+              onChange={(e) => setForm({ ...form, splitType: e.target.value })}
               className="field"
             >
-              <option value="equal">Everyone (split equally)</option>
-              <option value="solo">Just me</option>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  Just {m.name}
-                </option>
-              ))}
+              <option value="EQUAL">Equal</option>
+              <option value="EXACT">Exact amounts</option>
             </select>
           </label>
         </div>
@@ -442,8 +511,6 @@ function ExpenseModal({ expense, members = [], onClose, onSave, onDelete, title 
   )
 }
 
-// Modal — same overlay pattern used in Schedule.jsx (defined locally here
-// rather than shared to keep the file self-contained).
 function Modal({ title, onClose, children }) {
   return (
     <motion.div

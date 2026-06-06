@@ -25,18 +25,8 @@ const COVER_PRESETS = [
   'https://images.unsplash.com/photo-1503614472-8c93d56e92ce?auto=format&fit=crop&w=1600&q=80',
 ]
 
-// ============================================================================
-// NewTrip.jsx — /app/trips/new. A 3-step wizard for creating a new trip:
-//   1. trip details   (name, destination, duration, start date)
-//   2. add a photo    (upload or pick a preset)
-//   3. invite buddies (collect emails)
-// On submit, calls TripsContext.addTrip() and navigates to the new trip.
-// ============================================================================
-
 const STEPS = ['trip details', 'add a photo', 'invite buddies']
 
-// Stepper — the small numbered progress bar at the top of the wizard.
-// `step` is 1-based; circles before it are checkmarks, the current one is bold.
 function Stepper({ step }) {
   return (
     <div className="mb-8 flex items-center justify-center gap-3">
@@ -80,37 +70,32 @@ function Stepper({ step }) {
   )
 }
 
-// NewTrip — the wizard's container component. Holds every piece of form
-// state in local useState so nothing touches global storage until "create".
 export default function NewTrip() {
-  const location = useLocation()                 // router-injected URL info; carries pre-fill state
+  const location = useLocation()
   const navigate = useNavigate()
-  const { addTrip } = useTrips()                 // global action that appends to the trip list
-  const [step, setStep] = useState(1)            // which wizard step is showing (1, 2, or 3)
+  const { addTrip } = useTrips()
+  const [step, setStep] = useState(1)
 
-  // ---- Form fields (local state, lost on unmount) ------------------------
-  const [name, setName] = useState('')
-  const [destination, setDestination] = useState(location.state?.destination || '') // pre-filled if user came from Home search
-  const [duration, setDuration] = useState(4)
-  const [startDate, setStartDate] = useState('')
-  const [cover, setCover] = useState(COVER_PRESETS[0])
-  const [invites, setInvites] = useState([
-    { id: 'i1', email: 'tina.tsai@example.com' },
-    { id: 'i2', email: 'hamin@example.com' },
-  ])
-  const [editingId, setEditingId] = useState(null)   // which invite row is currently in edit mode
-  const fileInput = useRef(null)                     // ref to the hidden <input type="file"> for cover uploads
+  // Form fields
+  const [name,        setName]        = useState('')
+  const [destination, setDestination] = useState(location.state?.destination || '')
+  const [duration,    setDuration]    = useState(4)
+  const [startDate,   setStartDate]   = useState('')
+  const [cover,       setCover]       = useState(COVER_PRESETS[0])
+  const [invites,     setInvites]     = useState([])
+  const [editingId,   setEditingId]   = useState(null)
+  const fileInput = useRef(null)
 
-  // canNext — derived flag for "is the current step complete enough to advance".
-  // useMemo avoids recomputing on every keystroke unless deps change.
+  // Submission state
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState(null)
+
   const canNext = useMemo(() => {
     if (step === 1) return name.trim().length > 1 && destination.trim().length > 1
     if (step === 2) return !!cover
     return true
   }, [step, name, destination, cover])
 
-  // onFilePick — handler for the cover image <input type="file">. Reads the
-  // chosen image as a base64 data URL so we can save it inline (no upload).
   const onFilePick = (e) => {
     const f = e.target.files?.[0]
     if (!f) return
@@ -119,8 +104,6 @@ export default function NewTrip() {
     reader.readAsDataURL(f)
   }
 
-  // computeEndDate — adds `duration` days to startDate and returns it as
-  // an ISO date (yyyy-mm-dd) for storage.
   const computeEndDate = () => {
     if (!startDate) return ''
     const d = new Date(startDate)
@@ -128,26 +111,54 @@ export default function NewTrip() {
     return d.toISOString().slice(0, 10)
   }
 
-  // submit — finalize the wizard. Calls addTrip with everything we collected,
-  // then navigates the user straight into the new trip's overview page.
-  const submit = () => {
-    const trip = addTrip({
-      name: name.trim() || 'Untitled Trip',
-      location: destination.trim(),
-      startDate: startDate || new Date().toISOString().slice(0, 10),
-      endDate:
-        computeEndDate() ||
-        new Date(Date.now() + duration * 86400000).toISOString().slice(0, 10),
-      cover,
-      members: invites
-        .filter((i) => i.email.includes('@'))
-        .map((i, idx) => ({
-          id: 'mem_' + idx,
-          name: i.email.split('@')[0],
-          avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(i.email)}`,
-        })),
+  // submit — now async. Creates the trip on the backend, then adds members
+  // by email one at a time. Navigates to the new trip on success.
+  const submit = async () => {
+    setSubmitting(true)
+    setSubmitError(null)
+
+    try {
+      const trip = await addTrip({
+        title:       name.trim() || 'Untitled Trip',
+        destination: destination.trim(),
+        startDate:   startDate || new Date().toISOString().slice(0, 10),
+        endDate:
+          computeEndDate() ||
+          new Date(Date.now() + duration * 86400000).toISOString().slice(0, 10),
+        cover,
+      })
+
+      // Add invited members by email after the trip is created.
+      // We do this sequentially so errors don't block the trip creation.
+      // Invalid emails (users not yet registered) are silently skipped.
+      const validInvites = invites.filter((i) => i.email.includes('@'))
+      for (const invite of validInvites) {
+        try {
+          await addMemberByEmail(trip.id, invite.email)
+        } catch {
+          // Member not found or already added — skip silently
+        }
+      }
+
+      navigate(`/app/trips/${trip.id}`)
+    } catch (err) {
+      setSubmitError(err.message || 'Failed to create trip. Please try again.')
+      setSubmitting(false)
+    }
+  }
+
+  // addMemberByEmail — calls the members API directly since TripsContext.addMember
+  // expects the trip to already be in local state for refreshTrip to work.
+  const addMemberByEmail = async (tripId, email) => {
+    const res = await fetch(`/api/members?tripId=${tripId}`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('wanderly.token')}`
+      },
+      body: JSON.stringify({ email })
     })
-    navigate(`/app/trips/${trip.id}`)
+    if (!res.ok) throw new Error('Member not found')
   }
 
   return (
@@ -177,65 +188,61 @@ export default function NewTrip() {
                 transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
                 className="rounded-3xl bg-white p-8 text-ink-900 shadow-2xl"
               >
+                {/* Step 1 — Trip details */}
                 {step === 1 && (
                   <div>
-                    <h2 className="lower font-display text-2xl font-extrabold">trip name</h2>
+                    <h2 className="font-display text-2xl font-extrabold">tell us about your trip</h2>
+
+                    <label className="mt-5 block text-xs font-medium text-ink-900/70">trip name</label>
                     <input
-                      autoFocus
+                      type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="Italy trip 2026, Summer in Spain..."
-                      className="mt-3 w-full border-0 border-b border-ink-900/15 bg-transparent pb-2 text-lg placeholder:text-ink-900/30 focus:border-brand-500 focus:outline-none"
+                      placeholder="Summer in Kyoto"
+                      className="field mt-1.5"
                     />
 
-                    <div className="mt-8 rounded-3xl bg-gradient-to-br from-caper-600 to-caper-700 p-6 text-white shadow-card">
-                      <div className="flex items-center gap-2 text-sm opacity-90">
-                        <MapPin className="h-4 w-4" />
+                    <label className="mt-4 block text-xs font-medium text-ink-900/70">destination</label>
+                    <div className="relative mt-1.5">
+                      <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-900/40" />
+                      <input
+                        type="text"
+                        value={destination}
+                        onChange={(e) => setDestination(e.target.value)}
+                        placeholder="Kyoto, Japan"
+                        className="field pl-9"
+                      />
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-ink-900/70">duration (days)</label>
                         <input
-                          value={destination}
-                          onChange={(e) => setDestination(e.target.value)}
-                          placeholder="taipei, taiwan"
-                          className="flex-1 border-b border-white/30 bg-transparent pb-1 text-sm font-semibold placeholder:text-white/60 focus:border-white focus:outline-none"
+                          type="number"
+                          min={1}
+                          max={365}
+                          value={duration}
+                          onChange={(e) => setDuration(e.target.value)}
+                          className="field mt-1.5"
                         />
                       </div>
-                      <div className="mt-6 grid grid-cols-2 gap-6">
-                        <div>
-                          <div className="mb-2 text-[11px] uppercase tracking-widest opacity-80">
-                            duration
-                          </div>
-                          <div className="flex items-end gap-2">
-                            <input
-                              type="number"
-                              min={1}
-                              max={120}
-                              value={duration}
-                              onChange={(e) => setDuration(Number(e.target.value))}
-                              className="w-16 border-b border-white/40 bg-transparent text-4xl font-extrabold focus:border-white focus:outline-none"
-                            />
-                            <span className="pb-1 text-xs opacity-80">/ days</span>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="mb-2 text-[11px] uppercase tracking-widest opacity-80">
-                            start date
-                          </div>
-                          <input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full border-b border-white/40 bg-transparent pb-1 text-sm font-semibold focus:border-white focus:outline-none [color-scheme:dark]"
-                          />
-                        </div>
+                      <div>
+                        <label className="block text-xs font-medium text-ink-900/70">start date</label>
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className="field mt-1.5"
+                        />
                       </div>
                     </div>
                   </div>
                 )}
 
+                {/* Step 2 — Cover photo */}
                 {step === 2 && (
                   <div>
-                    <h2 className="lower font-display text-2xl font-extrabold">
-                      select a cover photo
-                    </h2>
+                    <h2 className="font-display text-2xl font-extrabold">select a cover photo</h2>
                     <button
                       type="button"
                       onClick={() => fileInput.current?.click()}
@@ -279,11 +286,14 @@ export default function NewTrip() {
                   </div>
                 )}
 
+                {/* Step 3 — Invite buddies */}
                 {step === 3 && (
                   <div>
-                    <h2 className="lower font-display text-2xl font-extrabold">
-                      invite travel buddies
-                    </h2>
+                    <h2 className="font-display text-2xl font-extrabold">invite travel buddies</h2>
+                    <p className="mt-1 text-xs text-ink-900/55">
+                      They need a Wanderly account. You can also invite after creating the trip.
+                    </p>
+
                     <form
                       onSubmit={(e) => {
                         e.preventDefault()
@@ -298,7 +308,7 @@ export default function NewTrip() {
                       <input
                         name="email"
                         type="email"
-                        placeholder="search by email or pick a buddy..."
+                        placeholder="friend@example.com"
                         className="field"
                       />
                       <button
@@ -321,13 +331,13 @@ export default function NewTrip() {
                               defaultValue={inv.email}
                               onBlur={(e) => {
                                 setInvites((arr) =>
-                                  arr.map((x) => (x.id === inv.id ? { ...x, email: e.target.value } : x)),
+                                  arr.map((x) =>
+                                    x.id === inv.id ? { ...x, email: e.target.value } : x,
+                                  ),
                                 )
                                 setEditingId(null)
                               }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') e.target.blur()
-                              }}
+                              onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur() }}
                               className="flex-1 border-b border-brand-500 bg-transparent text-sm focus:outline-none"
                             />
                           ) : (
@@ -343,9 +353,7 @@ export default function NewTrip() {
                             </button>
                             <button
                               type="button"
-                              onClick={() =>
-                                setInvites((arr) => arr.filter((x) => x.id !== inv.id))
-                              }
+                              onClick={() => setInvites((arr) => arr.filter((x) => x.id !== inv.id))}
                               className="grid h-8 w-8 place-items-center rounded-full hover:bg-dolly-50"
                             >
                               <Trash2 className="h-3.5 w-3.5 text-dolly-600" />
@@ -359,10 +367,17 @@ export default function NewTrip() {
                         </li>
                       )}
                     </ul>
+
+                    {/* Submission error */}
+                    {submitError && (
+                      <div className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
+                        {submitError}
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {/* Footer */}
+                {/* Footer nav */}
                 <div className="mt-8 flex items-center justify-between">
                   <button
                     type="button"
@@ -372,6 +387,7 @@ export default function NewTrip() {
                     {step === 1 ? <X className="h-4 w-4" /> : <ArrowLeft className="h-4 w-4" />}
                     {step === 1 ? 'cancel' : 'back'}
                   </button>
+
                   {step < 3 ? (
                     <button
                       type="button"
@@ -382,8 +398,20 @@ export default function NewTrip() {
                       next <ArrowRight className="h-4 w-4" />
                     </button>
                   ) : (
-                    <button type="button" onClick={submit} className="btn-brand">
-                      create trip <Check className="h-4 w-4" />
+                    <button
+                      type="button"
+                      onClick={submit}
+                      disabled={submitting}
+                      className="btn-brand disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {submitting ? (
+                        <>
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                          creating...
+                        </>
+                      ) : (
+                        <>create trip <Check className="h-4 w-4" /></>
+                      )}
                     </button>
                   )}
                 </div>

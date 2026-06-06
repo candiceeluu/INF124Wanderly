@@ -17,7 +17,6 @@ import NewTrip from './pages/NewTrip.jsx'
 import TripOverview from './pages/TripOverview.jsx'
 import Schedule from './pages/Schedule.jsx'
 import Budget from './pages/Budget.jsx'
-import Activity from './pages/Activity.jsx'
 import Settings from './pages/Settings.jsx'
 import AppShell from './components/AppShell.jsx'  // sidebar + outlet layout shared by all /app pages
 
@@ -64,7 +63,6 @@ export default function App() {
           <Route path="trips/:tripId" element={<TripOverview />} />           {/* /app/trips/:id */}
           <Route path="trips/:tripId/schedule" element={<Schedule />} />
           <Route path="trips/:tripId/budget" element={<Budget />} />
-          <Route path="trips/:tripId/activity" element={<Activity />} />
           <Route path="settings" element={<Settings />} />
         </Route>
 
