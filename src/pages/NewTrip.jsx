@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Camera,
   Check,
+  Crosshair,
   MapPin,
   Plus,
   Trash2,
@@ -78,6 +79,44 @@ export default function NewTrip() {
 
   const [name,        setName]        = useState('')
   const [destination, setDestination] = useState(location.state?.destination || '')
+  const [locating, setLocating] = useState(false)
+
+  const useMyLocation = () => {
+    if (!('geolocation' in navigator)) {
+      alert('Geolocation is not supported by your browser.')
+      return
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&current=temperature_2m`,
+          )
+          await res.json()
+          const geoRes = await fetch(
+            `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&count=1`,
+          )
+          const geo = await geoRes.json()
+          const place = geo?.results?.[0]
+          if (place) {
+            setDestination(`${place.name}${place.country ? `, ${place.country}` : ''}`)
+          } else {
+            setDestination(`${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)}`)
+          }
+        } catch {
+          setDestination(`${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)}`)
+        } finally {
+          setLocating(false)
+        }
+      },
+      (err) => {
+        setLocating(false)
+        alert(err.message || 'Could not get your location.')
+      },
+      { enableHighAccuracy: true, timeout: 8000 },
+    )
+  }
   const [duration,    setDuration]    = useState(1)
   const [startDate,   setStartDate]   = useState('')
   const [cover,       setCover]       = useState(COVER_PRESETS[0])
@@ -194,14 +233,24 @@ export default function NewTrip() {
                     />
 
                     <label className="mt-4 block text-xs font-medium text-ink-900/70">destination</label>
-                    <div className="relative mt-1.5">
+                    <div className="relative mt-1.5 flex items-center gap-2">
                       <input
                         type="text"
                         value={destination}
                         onChange={(e) => setDestination(e.target.value)}
                         placeholder="Kyoto, Japan"
-                        className="field pl-9"
+                        className="field pl-9 flex-1"
                       />
+                      <button
+                        type="button"
+                        onClick={useMyLocation}
+                        disabled={locating}
+                        title="Use my current location"
+                        className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-ink-900/10 px-3 py-2 text-xs font-medium text-ink-900 transition hover:bg-ink-900/[0.04] disabled:opacity-60"
+                      >
+                        <Crosshair className={`h-3.5 w-3.5 ${locating ? 'animate-spin' : ''}`} />
+                        {locating ? 'Locating...' : 'My location'}
+                      </button>
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-4">

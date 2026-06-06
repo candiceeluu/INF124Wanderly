@@ -5,6 +5,7 @@ import { Plane, Plus, MapPin, Footprints, Utensils, Briefcase, Clock, X } from '
 import TopBar from '../components/TopBar.jsx'
 import TripSubSidebar from '../components/TripSubSidebar.jsx'
 import PageTransition from '../components/PageTransition.jsx'
+import WeatherCard from '../components/WeatherCard.jsx'
 import { useTrips } from '../contexts/TripsContext.jsx'
 
 const TYPE_ICON = {
@@ -238,6 +239,10 @@ export default function TripOverview() {
                   </li>
                 ))}
               </ul>
+            </Card>
+
+            <Card title="weather at destination">
+              <WeatherCard destination={trip.destination} />
             </Card>
 
             <Card title="accommodations">
