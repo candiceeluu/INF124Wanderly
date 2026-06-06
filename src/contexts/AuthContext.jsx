@@ -34,17 +34,23 @@ export function AuthProvider({ children }) {
       headers: { Authorization: `Bearer ${storedToken}` }
     })
       .then((res) => {
-        if (!res.ok) throw new Error('Token invalid')
+        if (res.status === 401) {
+          localStorage.removeItem(TOKEN_KEY)
+          localStorage.removeItem(USER_KEY)
+          setUser(null)
+          setToken(null)
+          return null
+        }
+        if (!res.ok) return null
         return res.json()
       })
       .then((freshUser) => {
-        setUser(freshUser)
-        setToken(storedToken)
+        if (freshUser) {
+          setUser(freshUser)
+          setToken(storedToken)
+        }
       })
-      .catch(() => {
-        setUser(null)
-        setToken(null)
-      })
+      .catch(() => {})
   }, [])
 
   const loginWithGoogle = async (idToken) => {
