@@ -245,39 +245,6 @@ export default function TripOverview() {
               <WeatherCard destination={trip.destination} />
             </Card>
 
-            <Card title="accommodations">
-              <div className="grid gap-3 sm:grid-cols-2">
-                {(trip.accommodations || []).map((a) => (
-                  <div key={a.id} className="rounded-xl bg-white p-3 text-ink-900">
-                    <div className="flex items-center gap-2 text-xs font-semibold">
-                      <Briefcase className="h-3.5 w-3.5 text-brand-600" />
-                      {a.name}
-                    </div>
-                    {a.address && <div className="mt-1 text-[11px] text-ink-900/55">{a.address}</div>}
-                    {(a.checkIn || a.checkOut) && (
-                      <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] text-ink-900/55">
-                        {a.checkIn && (
-                          <div>
-                            <div className="uppercase tracking-widest">check in</div>
-                            <div className="text-[11px] text-ink-900">{new Date(a.checkIn).toLocaleDateString()}</div>
-                          </div>
-                        )}
-                        {a.checkOut && (
-                          <div>
-                            <div className="uppercase tracking-widest">check out</div>
-                            <div className="text-[11px] text-ink-900">{new Date(a.checkOut).toLocaleDateString()}</div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {(trip.accommodations || []).length === 0 && (
-                  <p className="text-xs text-white/45">No accommodations added yet.</p>
-                )}
-              </div>
-            </Card>
-
           </div>
         </div>
       </div>
