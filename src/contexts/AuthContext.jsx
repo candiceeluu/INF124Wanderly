@@ -62,6 +62,8 @@ export function AuthProvider({ children }) {
       }
 
       const { token: newToken, user: newUser } = await res.json()
+      localStorage.setItem(TOKEN_KEY, newToken)
+      localStorage.setItem(USER_KEY, JSON.stringify(newUser))
       setToken(newToken)
       setUser(newUser)
       return { success: true }
@@ -74,6 +76,8 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(USER_KEY)
     setUser(null)
     setToken(null)
   }
