@@ -47,7 +47,7 @@ export default function Budget() {
 
   const pieData = useMemo(() => {
     const acc = {}
-    ;(trip.expenses || []).forEach((x) => {
+    ;(trip?.expenses || []).forEach((x) => {
       const cat = x.category || 'misc'
       acc[cat] = (acc[cat] || 0) + Number(x.amount)
     })
@@ -56,15 +56,15 @@ export default function Budget() {
       value,
       color: CATEGORY_COLORS[name] || '#94a3b8',
     }))
-  }, [trip.expenses])
+  }, [trip?.expenses])
 
   const owedToMe = useMemo(() => {
     const result = []
-    ;(trip.expenses || []).forEach((expense) => {
+    ;(trip?.expenses || []).forEach((expense) => {
       if (expense.paidById !== user?.id) return
       ;(expense.participants || []).forEach((p) => {
-        if (p.userId === user?.id) return       
-        if (p.settled) return                
+        if (p.userId === user?.id) return
+        if (p.settled) return
         const share = expense.splitType === 'EQUAL'
           ? expense.amount / (expense.participants?.length || 1)
           : (p.share || 0)
@@ -80,7 +80,7 @@ export default function Budget() {
       })
     })
     return result
-  }, [trip.expenses, user])
+  }, [trip?.expenses, user])
 
   if (loading) {
     return (

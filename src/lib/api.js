@@ -23,12 +23,6 @@ export const authApi = {
     fetch('/api/auth/me', {
       headers: authHeaders()
     }).then(handleResponse),
-
-  logout: () =>
-    fetch('/api/auth/logout', {
-      method:  'POST',
-      headers: authHeaders()
-    }).then(handleResponse)
 }
 
 

@@ -80,8 +80,7 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+  const logout = () => {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
     setUser(null)
