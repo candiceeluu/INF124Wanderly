@@ -79,7 +79,7 @@ export default function NewTrip() {
   // Form fields
   const [name,        setName]        = useState('')
   const [destination, setDestination] = useState(location.state?.destination || '')
-  const [duration,    setDuration]    = useState(4)
+  const [duration,    setDuration]    = useState(1)
   const [startDate,   setStartDate]   = useState('')
   const [cover,       setCover]       = useState(COVER_PRESETS[0])
   const [invites,     setInvites]     = useState([])
@@ -188,7 +188,6 @@ export default function NewTrip() {
                 transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
                 className="rounded-3xl bg-white p-8 text-ink-900 shadow-2xl"
               >
-                {/* Step 1 — Trip details */}
                 {step === 1 && (
                   <div>
                     <h2 className="font-display text-2xl font-extrabold">tell us about your trip</h2>
@@ -204,7 +203,6 @@ export default function NewTrip() {
 
                     <label className="mt-4 block text-xs font-medium text-ink-900/70">destination</label>
                     <div className="relative mt-1.5">
-                      <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-900/40" />
                       <input
                         type="text"
                         value={destination}
@@ -239,7 +237,6 @@ export default function NewTrip() {
                   </div>
                 )}
 
-                {/* Step 2 — Cover photo */}
                 {step === 2 && (
                   <div>
                     <h2 className="font-display text-2xl font-extrabold">select a cover photo</h2>
@@ -286,7 +283,6 @@ export default function NewTrip() {
                   </div>
                 )}
 
-                {/* Step 3 — Invite buddies */}
                 {step === 3 && (
                   <div>
                     <h2 className="font-display text-2xl font-extrabold">invite travel buddies</h2>

@@ -65,7 +65,6 @@ export default function Schedule() {
   // ── All hooks must be declared before any early return ──
   const [weekStart,    setWeekStart]    = useState(startOfWeek(initial))
   const [editing,      setEditing]      = useState(null)
-  const [details,      setDetails]      = useState(null)
   const [menuId,       setMenuId]       = useState(null)
   const [adding,       setAdding]       = useState(false)
 
@@ -204,14 +203,19 @@ export default function Schedule() {
                               className="absolute right-0 top-7 z-10 w-32 overflow-hidden rounded-lg bg-white text-ink-900 shadow-xl ring-1 ring-black/5"
                             >
                               <button onClick={(e) => { e.stopPropagation(); setMenuId(null); setEditing(ev) }} className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-ink-900/5">
-                                <Pencil className="h-3 w-3" /> Edit time
+                                <Pencil className="h-3 w-3" /> Edit
                               </button>
-                              <button onClick={(e) => { e.stopPropagation(); setMenuId(null); setDetails(ev) }} className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-ink-900/5">
-                                <Search className="h-3 w-3" /> View details
-                              </button>
-                              <button onClick={(e) => { e.stopPropagation(); setMenuId(null); removeEvent(tripId, ev.id) }} className="flex w-full items-center gap-2 px-3 py-2 text-xs text-dolly-700 hover:bg-dolly-50">
-                                <Trash2 className="h-3 w-3" /> Remove
-                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const idToRemove = ev.id
+                                  setMenuId(null)
+                                  removeEvent(tripId, idToRemove)
+                                }}
+                                className="flex w-full items-center gap-2 px-3 py-2 text-xs text-dolly-700 hover:bg-dolly-50"
+                              >
+                              <Trash2 className="h-3 w-3" /> Remove
+                            </button>
                             </motion.div>
                           )}
                         </motion.div>
@@ -231,7 +235,7 @@ export default function Schedule() {
           <Modal onClose={() => setEditing(null)} title="Edit Event">
             <EventForm
               event={editing}
-              onSave={(patch) => { updateEvent(tripId, editing.id, patch); setEditing(null) }}
+              onSave={async (patch) => { await updateEvent(tripId, editing.id, patch); setEditing(null) }}
               onCancel={() => setEditing(null)}
             />
           </Modal>
@@ -247,25 +251,9 @@ export default function Schedule() {
                 type:      'activity',
                 color:     'bg-caper-300/90 text-ink-900',
               }}
-              onSave={(patch) => { addEvent(tripId, patch); setAdding(false) }}
+              onSave={async (patch) => { await addEvent(tripId, patch); setAdding(false) }}
               onCancel={() => setAdding(false)}
             />
-          </Modal>
-        )}
-        {details && (
-          <Modal onClose={() => setDetails(null)} title={details.title}>
-            <div className="space-y-2 text-sm">
-              <div className="text-ink-900/65">{fmtTime(details.startTime)} – {fmtTime(details.endTime)}</div>
-              {details.location && <div className="text-ink-900/65">{details.location}</div>}
-              <div className="mt-4 flex gap-2">
-                <button onClick={() => { setDetails(null); setEditing(details) }} className="btn-primary">
-                  <Pencil className="h-3.5 w-3.5" /> Edit time
-                </button>
-                <button onClick={() => { removeEvent(tripId, details.id); setDetails(null) }} className="btn">
-                  <Trash2 className="h-3.5 w-3.5 text-dolly-600" /> Remove
-                </button>
-              </div>
-            </div>
           </Modal>
         )}
       </AnimatePresence>
