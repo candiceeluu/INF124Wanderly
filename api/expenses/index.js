@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma.js"
 import { requireAuth } from "../../lib/auth.js"
+import { notifyTripMembers } from "../../lib/notify.js"
 
 export default async function handler(req, res) {
   let user
@@ -112,6 +113,13 @@ export default async function handler(req, res) {
             }
           }
         }
+      })
+
+      const actor = await prisma.user.findUnique({ where: { id: user.id }, select: { name: true } })
+      await notifyTripMembers(tripId, {
+        excludeUserId: user.id,
+        type: "EXPENSE_ADDED",
+        text: `${actor?.name || 'Someone'} added expense ${expense.name} ($${Number(expense.amount).toFixed(2)})`,
       })
 
       return res.status(201).json(expense)

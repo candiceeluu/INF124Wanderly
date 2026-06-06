@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { tripsApi, eventsApi, expensesApi, membersApi } from '../lib/api.js'
+import { tripsApi, eventsApi, expensesApi, membersApi, notificationsApi } from '../lib/api.js'
 import { useAuth } from './AuthContext.jsx'
 
 const TripsContext = createContext(null)
@@ -10,10 +10,22 @@ export function TripsProvider({ children }) {
   const [trips,         setTrips]         = useState([])
   const [loading,       setLoading]       = useState(false)
   const [error,         setError]         = useState(null)
+  const [notifications, setNotifications] = useState([])
+
+  const refreshNotifications = useCallback(async () => {
+    if (!user || !token) return
+    try {
+      const data = await notificationsApi.getAll()
+      setNotifications(data.map((n) => ({ ...n, when: relativeTime(n.createdAt) })))
+    } catch {
+      // swallow transient errors so the UI stays usable
+    }
+  }, [user, token])
 
   useEffect(() => {
     if (!user || !token) {
       setTrips([])
+      setNotifications([])
       return
     }
 
@@ -22,7 +34,11 @@ export function TripsProvider({ children }) {
       .then((data) => setTrips(data))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [user, token])
+
+    refreshNotifications()
+    const interval = setInterval(refreshNotifications, 30000)
+    return () => clearInterval(interval)
+  }, [user, token, refreshNotifications])
 
   const getTrip = useCallback((id) => trips.find((t) => t.id === id), [trips])
 
@@ -130,6 +146,16 @@ export function TripsProvider({ children }) {
   }, [refreshTrip])
 
   
+  const markNotifRead = useCallback(async (id) => {
+    setNotifications((arr) => arr.map((n) => (n.id === id ? { ...n, read: true } : n)))
+    try { await notificationsApi.markRead(id) } catch {}
+  }, [])
+
+  const markAllNotifsRead = useCallback(async () => {
+    setNotifications((arr) => arr.map((n) => ({ ...n, read: true })))
+    try { await notificationsApi.markAllRead() } catch {}
+  }, [])
+
   const getTripBudget = useCallback((tripId) => {
     const trip = trips.find((t) => t.id === tripId)
     if (!trip) return { total: 0, spent: 0 }
@@ -157,10 +183,11 @@ export function TripsProvider({ children }) {
     getTripBudget,
     addMember,
     removeMember,
-    notifications:        [],
+    notifications,
     recommendations:      [],
-    markNotifRead:        () => {},
-    markAllNotifsRead:    () => {},
+    refreshNotifications,
+    markNotifRead,
+    markAllNotifsRead,
   }), [
     trips, loading, error,
     getTrip, addTrip, updateTrip, removeTrip, refreshTrip,
@@ -168,9 +195,23 @@ export function TripsProvider({ children }) {
     addExpense, updateExpense, removeExpense, settleExpense,
     setBudgetTotal, getTripBudget,
     addMember, removeMember,
+    notifications, refreshNotifications, markNotifRead, markAllNotifsRead,
   ])
 
   return <TripsContext.Provider value={value}>{children}</TripsContext.Provider>
 }
 
 export const useTrips = () => useContext(TripsContext)
+
+function relativeTime(iso) {
+  if (!iso) return ''
+  const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}

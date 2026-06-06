@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma.js"
 import { requireAuth } from "../../lib/auth.js"
+import { notifyTripMembers } from "../../lib/notify.js"
 
 export default async function handler(req, res) {
   let user
@@ -83,6 +84,8 @@ export default async function handler(req, res) {
     const { title, destination, startDate, endDate, cover, budgetTotal } = req.body
 
     try {
+      const before = await prisma.trip.findUnique({ where: { id }, select: { budgetTotal: true, title: true } })
+
       const updated = await prisma.trip.update({
         where: { id },
         data: {
@@ -94,6 +97,14 @@ export default async function handler(req, res) {
           budgetTotal
         }
       })
+
+      if (budgetTotal !== undefined && Number(budgetTotal) !== Number(before?.budgetTotal)) {
+        await notifyTripMembers(id, {
+          excludeUserId: user.id,
+          type: "BUDGET_CHANGED",
+          text: `Budget for "${updated.title}" changed to $${Number(budgetTotal).toFixed(2)}`,
+        })
+      }
 
       return res.status(200).json(updated)
 

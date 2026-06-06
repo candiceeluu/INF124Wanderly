@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma.js"
 import { requireAuth } from "../../lib/auth.js"
+import { notifyTripMembers } from "../../lib/notify.js"
 
 export default async function handler(req, res) {
   let user
@@ -56,6 +57,14 @@ export default async function handler(req, res) {
           endTime:   endTime   ? new Date(endTime)   : null
         }
       })
+
+      const actor = await prisma.user.findUnique({ where: { id: user.id }, select: { name: true } })
+      await notifyTripMembers(tripId, {
+        excludeUserId: user.id,
+        type: "EVENT_ADDED",
+        text: `${actor?.name || 'Someone'} added "${event.title}" to the schedule`,
+      })
+
       return res.status(201).json(event)
     } catch (error) {
       return res.status(500).json({ error: error.message })

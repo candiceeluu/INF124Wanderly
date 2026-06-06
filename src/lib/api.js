@@ -117,6 +117,26 @@ export const eventsApi = {
 }
 
 
+export const notificationsApi = {
+  getAll: () =>
+    fetch('/api/notifications', {
+      headers: authHeaders()
+    }).then(handleResponse),
+
+  markRead: (id) =>
+    fetch(`/api/notifications/${id}`, {
+      method:  'PATCH',
+      headers: authHeaders()
+    }).then(handleResponse),
+
+  markAllRead: () =>
+    fetch('/api/notifications', {
+      method:  'POST',
+      headers: authHeaders()
+    }).then(handleResponse),
+}
+
+
 export const expensesApi = {
   getAll: (tripId) =>
     fetch(`/api/expenses?tripId=${tripId}`, {

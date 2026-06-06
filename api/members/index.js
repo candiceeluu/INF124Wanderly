@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma.js"
 import { requireAuth } from "../../lib/auth.js"
+import { notifyTripMembers, notifyUser } from "../../lib/notify.js"
 
 export default async function handler(req, res) {
   let user
@@ -82,6 +83,18 @@ export default async function handler(req, res) {
             select: { id: true, name: true, email: true, avatar: true }
           }
         }
+      })
+
+      const trip = await prisma.trip.findUnique({ where: { id: tripId }, select: { title: true } })
+      await notifyTripMembers(tripId, {
+        excludeUserId: user.id,
+        type: "MEMBER_ADDED",
+        text: `${userToAdd.name} joined "${trip?.title || 'a trip'}"`,
+      })
+      await notifyUser(userToAdd.id, {
+        tripId,
+        type: "TRIP_INVITE",
+        text: `You were added to "${trip?.title || 'a trip'}"`,
       })
 
       return res.status(201).json(newMember)
