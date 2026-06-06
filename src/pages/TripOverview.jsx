@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Plane, Plus, MapPin, Footprints, Utensils, Briefcase, Clock } from 'lucide-react'
@@ -22,10 +23,27 @@ function formatRange(s, e) {
 }
 
 export default function TripOverview() {
-  const { tripId }              = useParams()
-  const { getTrip, getTripBudget } = useTrips()
-  const trip                    = getTrip(tripId)
-  const navigate                = useNavigate()
+  const { tripId }                          = useParams()
+  const { getTrip, getTripBudget, refreshTrip, loading } = useTrips()
+  const navigate                            = useNavigate()
+  const trip                                = getTrip(tripId)
+
+  // Fetch the full trip with nested members, events, expenses on mount
+  useEffect(() => {
+    if (tripId) refreshTrip(tripId)
+  }, [tripId])
+
+  // Loading state — show spinner while initial fetch is in progress
+  if (loading && !trip) {
+    return (
+      <PageTransition className="flex flex-1 items-center justify-center">
+        <div className="text-center text-white/55">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
+          <p className="mt-3 text-sm">Loading trip...</p>
+        </div>
+      </PageTransition>
+    )
+  }
 
   if (!trip) {
     return (
@@ -51,7 +69,6 @@ export default function TripOverview() {
     })
     .slice(0, 4)
 
-  // Members — API returns TripMember records with a nested user object
   const members = trip.members || []
 
   return (
@@ -77,13 +94,11 @@ export default function TripOverview() {
             <div className="absolute inset-0 bg-gradient-to-r from-ink-900/70 via-ink-900/30 to-transparent" />
             <div className="absolute inset-0 flex items-end justify-between p-6">
               <div className="text-white">
-                {/* title replaces name */}
                 <h1 className="lower font-display text-3xl font-extrabold sm:text-4xl">
                   {trip.title}
                 </h1>
                 <div className="mt-1 inline-flex items-center gap-1.5 text-xs text-white/80">
                   <MapPin className="h-3.5 w-3.5" />
-                  {/* destination replaces location */}
                   {trip.destination}
                 </div>
               </div>
@@ -103,7 +118,6 @@ export default function TripOverview() {
             <Card title="members">
               <div className="flex flex-wrap items-center gap-3">
                 {members.map((m) => {
-                  // API returns { id, role, user: { id, name, avatar, email } }
                   const u = m.user || m
                   return (
                     <motion.div key={m.id} whileHover={{ y: -3 }} className="group relative">
@@ -126,12 +140,9 @@ export default function TripOverview() {
                     </motion.div>
                   )
                 })}
-                <button
-                  onClick={() => navigate(`/app/trips/${tripId}/members`)}
-                  className="grid h-12 w-12 place-items-center rounded-full border border-dashed border-white/30 text-white/70 transition hover:border-white hover:text-white"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
+                {members.length === 0 && (
+                  <p className="text-xs text-white/45">No members yet.</p>
+                )}
               </div>
             </Card>
 
@@ -156,30 +167,20 @@ export default function TripOverview() {
                 {upcoming.map((ev) => {
                   const Icon = TYPE_ICON[ev.type] || Clock
                   const time = ev.startTime
-                    ? new Date(ev.startTime).toLocaleTimeString([], {
-                        hour: 'numeric',
-                        minute: '2-digit',
-                      })
+                    ? new Date(ev.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
                     : null
                   const date = ev.startTime
-                    ? new Date(ev.startTime).toLocaleDateString(undefined, {
-                        month: 'numeric',
-                        day: 'numeric',
-                      })
+                    ? new Date(ev.startTime).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })
                     : '—'
                   return (
                     <li key={ev.id} className="flex items-center gap-3 py-3 text-sm">
                       <div className="w-14 shrink-0 text-[11px] font-semibold uppercase tracking-wider text-white/65">
                         {date}
-                        {time && (
-                          <div className="text-[10px] font-normal text-white/45">{time}</div>
-                        )}
+                        {time && <div className="text-[10px] font-normal text-white/45">{time}</div>}
                       </div>
                       <div className="flex-1">
                         <div className="font-medium">{ev.title}</div>
-                        {ev.location && (
-                          <div className="text-[11px] text-white/50">{ev.location}</div>
-                        )}
+                        {ev.location && <div className="text-[11px] text-white/50">{ev.location}</div>}
                       </div>
                       <span className="grid h-8 w-8 place-items-center rounded-full bg-white/10">
                         <Icon className="h-3.5 w-3.5" />
@@ -211,9 +212,7 @@ export default function TripOverview() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-display text-3xl font-extrabold text-caper-600">
-                      {pct}%
-                    </div>
+                    <div className="font-display text-3xl font-extrabold text-caper-600">{pct}%</div>
                     <div className="text-[11px] text-ink-900/55">of your budget</div>
                   </div>
                 </div>
@@ -229,7 +228,6 @@ export default function TripOverview() {
                   ${budget.spent.toFixed(2)} / ${budget.total.toFixed(2)}
                 </div>
               </div>
-
               <ul className="mt-3 divide-y divide-white/5 text-sm text-white/85">
                 {(trip.expenses || []).slice(0, 2).map((x) => (
                   <li key={x.id} className="flex items-center justify-between py-2">
@@ -249,35 +247,28 @@ export default function TripOverview() {
                       <Briefcase className="h-3.5 w-3.5 text-brand-600" />
                       {a.name}
                     </div>
-                    {a.address && (
-                      <div className="mt-1 text-[11px] text-ink-900/55">{a.address}</div>
-                    )}
+                    {a.address && <div className="mt-1 text-[11px] text-ink-900/55">{a.address}</div>}
                     {(a.checkIn || a.checkOut) && (
                       <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] text-ink-900/55">
                         {a.checkIn && (
                           <div>
                             <div className="uppercase tracking-widest">check in</div>
-                            <div className="text-[11px] text-ink-900">
-                              {new Date(a.checkIn).toLocaleDateString()}
-                            </div>
+                            <div className="text-[11px] text-ink-900">{new Date(a.checkIn).toLocaleDateString()}</div>
                           </div>
                         )}
                         {a.checkOut && (
                           <div>
                             <div className="uppercase tracking-widest">check out</div>
-                            <div className="text-[11px] text-ink-900">
-                              {new Date(a.checkOut).toLocaleDateString()}
-                            </div>
+                            <div className="text-[11px] text-ink-900">{new Date(a.checkOut).toLocaleDateString()}</div>
                           </div>
                         )}
                       </div>
                     )}
                   </div>
                 ))}
-                <button className="grid place-items-center rounded-xl border border-dashed border-white/25 px-3 py-6 text-[11px] text-white/70 transition hover:border-white hover:text-white">
-                  <Plus className="mb-1 h-4 w-4" />
-                  add an accommodation
-                </button>
+                {(trip.accommodations || []).length === 0 && (
+                  <p className="text-xs text-white/45">No accommodations added yet.</p>
+                )}
               </div>
             </Card>
 
