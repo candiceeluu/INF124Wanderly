@@ -108,7 +108,6 @@ export default function Schedule() {
       <div className="px-6 pb-12 pl-20 md:pl-24">
         <div className="mx-auto max-w-[1500px]">
 
-          {/* ── Calendar ── */}
           <section className="card-dark overflow-hidden p-5">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
