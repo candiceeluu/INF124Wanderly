@@ -3,8 +3,6 @@
 plan trips with friends, split costs without the awkward math, and discover places that actually fit your vibe — all in one place.
 
 > **INF 124 — Spring 2026 final project**
-> Candice Lu · Chiwei Tai · Hamin Lee
-
 ---
 
 ## features
