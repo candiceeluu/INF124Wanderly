@@ -30,7 +30,7 @@ function TripCard({ trip, index }) {
       >
         <motion.img
           src={trip.cover}
-          alt={trip.name}
+          alt={trip.title}
           whileHover={{ scale: 1.08 }}
           transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
           className="h-full w-full object-cover"
@@ -40,7 +40,7 @@ function TripCard({ trip, index }) {
           <div className="text-[10px] uppercase tracking-wider text-white/70">
             {start} — {end}
           </div>
-          <div className="lower font-display text-base font-bold leading-tight">{trip.name}</div>
+          <div className="lower font-display text-base font-bold leading-tight">{trip.title}</div>
         </div>
       </Link>
     </motion.div>

@@ -68,7 +68,7 @@ export default function AllTrips() {
                     >
                       <motion.img
                         src={t.cover}
-                        alt={t.name}
+                        alt={t.title}
                         whileHover={{ scale: 1.08 }}
                         transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
                         className="h-full w-full object-cover"
@@ -79,7 +79,7 @@ export default function AllTrips() {
                           {start} — {end}
                         </div>
                         <div className="lower font-display text-lg font-bold leading-tight">
-                          {t.name}
+                          {t.title}
                         </div>
                       </div>
                     </Link>
