@@ -55,14 +55,12 @@ export default function Schedule() {
   const { getTrip, addEvent, updateEvent, removeEvent, refreshTrip, loading } = useTrips()
   const trip       = getTrip(tripId)
 
-  // Refresh the full trip (with nested events) on mount
   useEffect(() => {
     if (tripId) refreshTrip(tripId)
   }, [tripId])
 
   const initial = trip?.startDate ? new Date(trip.startDate) : new Date()
 
-  // ── All hooks must be declared before any early return ──
   const [weekStart,    setWeekStart]    = useState(startOfWeek(initial))
   const [editing,      setEditing]      = useState(null)
   const [menuId,       setMenuId]       = useState(null)
@@ -87,7 +85,6 @@ export default function Schedule() {
     return map
   }, [trip?.events, weekStart, days])
 
-  // ── Early returns after all hooks ──
   if (loading && !trip) {
     return (
       <PageTransition className="flex flex-1 items-center justify-center">
@@ -140,7 +137,6 @@ export default function Schedule() {
               </div>
             </div>
 
-            {/* Day headers */}
             <div className="grid grid-cols-[64px_repeat(7,1fr)] gap-px bg-white/5">
               <div />
               {days.map((d, i) => {
@@ -156,7 +152,6 @@ export default function Schedule() {
               })}
             </div>
 
-            {/* Time grid */}
             <div className="relative grid grid-cols-[64px_repeat(7,1fr)] bg-white/5">
               <div className="bg-ink-900">
                 {HOURS.map((h) => (
@@ -229,7 +224,6 @@ export default function Schedule() {
         </div>
       </div>
 
-      {/* ── Modals ── */}
       <AnimatePresence>
         {editing && (
           <Modal onClose={() => setEditing(null)} title="Edit Event">

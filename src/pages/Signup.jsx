@@ -1,7 +1,4 @@
-// ============================================================================
-// Signup.jsx — /signup route. Mirrors Login.jsx but calls signup() instead.
-// In this demo signup() == login() (no real backend to register against).
-// ============================================================================
+
 import AuthShell from '../components/AuthShell.jsx'
 import { useAuth } from '../contexts/AuthContext.jsx'
 

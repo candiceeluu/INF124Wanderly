@@ -28,12 +28,10 @@ export default function TripOverview() {
   const navigate                            = useNavigate()
   const trip                                = getTrip(tripId)
 
-  // Fetch the full trip with nested members, events, expenses on mount
   useEffect(() => {
     if (tripId) refreshTrip(tripId)
   }, [tripId])
 
-  // Loading state — show spinner while initial fetch is in progress
   if (loading && !trip) {
     return (
       <PageTransition className="flex flex-1 items-center justify-center">
@@ -111,10 +109,8 @@ export default function TripOverview() {
             </div>
           </motion.div>
 
-          {/* Grid */}
           <div className="mt-6 grid gap-5 lg:grid-cols-2">
 
-            {/* Members */}
             <Card title="members">
               <div className="flex flex-wrap items-center gap-3">
                 {members.map((m) => {
@@ -146,7 +142,6 @@ export default function TripOverview() {
               </div>
             </Card>
 
-            {/* Upcoming events */}
             <Card
               title="upcoming events"
               action={
@@ -191,7 +186,6 @@ export default function TripOverview() {
               </ul>
             </Card>
 
-            {/* Budget */}
             <Card
               title="budget progress"
               action={
@@ -238,7 +232,6 @@ export default function TripOverview() {
               </ul>
             </Card>
 
-            {/* Accommodations */}
             <Card title="accommodations">
               <div className="grid gap-3 sm:grid-cols-2">
                 {(trip.accommodations || []).map((a) => (

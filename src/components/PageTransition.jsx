@@ -1,12 +1,6 @@
-// ============================================================================
-// PageTransition.jsx — Reusable wrapper that fades + slides a page in/out.
-// Every authenticated page wraps its root element with this so route changes
-// feel smooth. Works in tandem with the <AnimatePresence> in App.jsx.
-// ============================================================================
+
 import { motion } from 'framer-motion'
 
-// PageTransition — children are rendered inside a motion.div with
-// enter/exit animations. `initial` fires when mounted, `exit` when unmounted.
 export default function PageTransition({ children, className = '' }) {
   return (
     <motion.div

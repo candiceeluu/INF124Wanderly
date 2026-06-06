@@ -76,7 +76,6 @@ export default function NewTrip() {
   const { addTrip } = useTrips()
   const [step, setStep] = useState(1)
 
-  // Form fields
   const [name,        setName]        = useState('')
   const [destination, setDestination] = useState(location.state?.destination || '')
   const [duration,    setDuration]    = useState(1)
@@ -111,8 +110,6 @@ export default function NewTrip() {
     return d.toISOString().slice(0, 10)
   }
 
-  // submit — now async. Creates the trip on the backend, then adds members
-  // by email one at a time. Navigates to the new trip on success.
   const submit = async () => {
     setSubmitting(true)
     setSubmitError(null)
@@ -128,15 +125,11 @@ export default function NewTrip() {
         cover,
       })
 
-      // Add invited members by email after the trip is created.
-      // We do this sequentially so errors don't block the trip creation.
-      // Invalid emails (users not yet registered) are silently skipped.
       const validInvites = invites.filter((i) => i.email.includes('@'))
       for (const invite of validInvites) {
         try {
           await addMemberByEmail(trip.id, invite.email)
         } catch {
-          // Member not found or already added — skip silently
         }
       }
 
@@ -147,8 +140,7 @@ export default function NewTrip() {
     }
   }
 
-  // addMemberByEmail — calls the members API directly since TripsContext.addMember
-  // expects the trip to already be in local state for refreshTrip to work.
+
   const addMemberByEmail = async (tripId, email) => {
     const res = await fetch(`/api/members?tripId=${tripId}`, {
       method:  'POST',
@@ -364,7 +356,6 @@ export default function NewTrip() {
                       )}
                     </ul>
 
-                    {/* Submission error */}
                     {submitError && (
                       <div className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
                         {submitError}
@@ -373,7 +364,6 @@ export default function NewTrip() {
                   </div>
                 )}
 
-                {/* Footer nav */}
                 <div className="mt-8 flex items-center justify-between">
                   <button
                     type="button"

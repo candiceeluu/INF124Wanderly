@@ -84,14 +84,6 @@ const TESTIMONIALS = [
   },
 ]
 
-// ============================================================================
-// Landing.jsx — Public marketing page at "/".
-// Composed of several internal subcomponents (Hero, FeaturesBlock, HowItWorks,
-// Destinations, Testimonials, CTA, Footer) that are stitched together by the
-// default-exported <Landing /> at the bottom.
-// ============================================================================
-
-// Header — sticky transparent top bar with the logo and log-in/sign-up buttons.
 function Header() {
   return (
     <header className="absolute inset-x-0 top-0 z-30 flex items-center justify-between px-6 py-5 md:px-12">
@@ -125,20 +117,15 @@ function Header() {
   )
 }
 
-// Hero — fullscreen banner with the headline + CTA buttons. Uses framer's
-// useScroll/useTransform to drive a parallax effect (image pans/zooms and
-// the text fades out as the user scrolls down).
 function Hero() {
   const ref = useRef(null)
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end start'] })
-  // Map scroll progress (0→1) onto transform values that animate as you scroll.
   const y = useTransform(scrollYProgress, [0, 1], ['0%', '30%'])
   const scale = useTransform(scrollYProgress, [0, 1], [1, 1.15])
   const opacity = useTransform(scrollYProgress, [0, 0.8], [1, 0])
 
   return (
     <section ref={ref} className="relative h-[92vh] min-h-[600px] w-full overflow-hidden">
-      {/* Parallax image */}
       <motion.div className="absolute inset-0" style={{ y, scale }}>
         <img
           src={HERO}
@@ -153,7 +140,6 @@ function Hero() {
 
       <Header />
 
-      {/* Floating orbs */}
       <motion.div
         className="absolute -left-10 top-32 h-72 w-72 rounded-full bg-brand-400/30 blur-3xl"
         animate={{ y: [0, -20, 0] }}
@@ -165,7 +151,6 @@ function Hero() {
         transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
       />
 
-      {/* Content */}
       <motion.div
         style={{ opacity }}
         className="relative z-10 flex h-full flex-col justify-end px-6 pb-14 pt-28 md:px-16 md:pb-20 lg:pb-28"
@@ -232,7 +217,6 @@ function Hero() {
           </motion.div>
         </motion.div>
 
-        {/* Stats strip */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -252,7 +236,6 @@ function Hero() {
         </motion.div>
       </motion.div>
 
-      {/* Bottom scroll cue */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -272,13 +255,10 @@ function Hero() {
   )
 }
 
-// FeaturesBlock — the white section with two photos on the left and the three
-// feature cards (easy planning / budget tracking / live sharing) on the right.
 function FeaturesBlock() {
   return (
     <section className="relative bg-white px-6 py-24 md:px-16">
       <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1fr_1.3fr]">
-        {/* Photos collage */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -332,7 +312,6 @@ function FeaturesBlock() {
           </motion.div>
         </motion.div>
 
-        {/* Copy + cards */}
         <div>
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
@@ -372,8 +351,6 @@ function FeaturesBlock() {
   )
 }
 
-// FeatureCard — a single feature tile used inside FeaturesBlock. `accent`
-// swaps to a richer brand-color background for the middle/highlight card.
 function FeatureCard({ icon, title, text, accent }) {
   return (
     <motion.div
@@ -397,8 +374,6 @@ function FeatureCard({ icon, title, text, accent }) {
   )
 }
 
-// HowItWorks — dark section showing the four numbered steps (create, invite,
-// build itinerary, travel together). Cards stagger in as they scroll into view.
 function HowItWorks() {
   const steps = [
     {
@@ -476,8 +451,6 @@ function HowItWorks() {
   )
 }
 
-// Destinations — sand-colored grid showcasing six sample destinations,
-// each a hover-zoomable card with a country/category tag.
 function Destinations() {
   return (
     <section className="bg-sand px-6 py-24 md:px-16">
@@ -543,7 +516,6 @@ function Destinations() {
   )
 }
 
-// Testimonials — three quote cards with 5-star ratings, fake users.
 function Testimonials() {
   return (
     <section className="bg-white px-6 py-24 md:px-16">
@@ -598,7 +570,6 @@ function Testimonials() {
   )
 }
 
-// CTA — final dark call-to-action banner with another sign-up/log-in pair.
 function CTA() {
   return (
     <section className="relative overflow-hidden bg-ink-900 px-6 py-24 text-white md:px-16">
@@ -645,7 +616,6 @@ function CTA() {
   )
 }
 
-// Footer — copyright row + nav links (about / privacy / contact).
 function Footer() {
   return (
     <footer className="bg-ink-900 px-6 pb-10 text-white/70 md:px-16">
@@ -664,8 +634,6 @@ function Footer() {
   )
 }
 
-// Landing — default export. Composes the seven sections above into a single
-// scrollable page. Each subcomponent owns its own styling/animation.
 export default function Landing() {
   return (
     <main className="overflow-x-hidden bg-white">

@@ -109,7 +109,6 @@ export default function Budget() {
 
   const totalOwed = owedToMe.reduce((s, d) => s + d.amount, 0)
 
-  // members in flat shape for the expense modal dropdowns
   const members = (trip.members || []).map((m) => ({
     id:     m.userId || m.user?.id || m.id,
     name:   m.user?.name   || m.name   || 'Member',
@@ -127,10 +126,8 @@ export default function Budget() {
 
           <div className="mt-6 grid gap-5 lg:grid-cols-[1.3fr_1fr]">
 
-            {/* ── Left column ── */}
             <div className="space-y-5">
 
-              {/* Progress card */}
               <motion.div
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -169,7 +166,6 @@ export default function Budget() {
                 </div>
               </motion.div>
 
-              {/* pie chart */}
               <motion.div
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -214,7 +210,6 @@ export default function Budget() {
 
             <div className="space-y-5">
 
-              {/* You are owed */}
               <motion.div
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
