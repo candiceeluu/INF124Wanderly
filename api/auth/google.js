@@ -39,6 +39,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ token, user })
   } catch (error) {
-    return res.status(401).json({ error: "Invalid Google token" })
+  console.log("Google auth error:", error.message)
+  return res.status(401).json({ error: "Invalid Google token", detail: error.message })
   }
 }
