@@ -15,3 +15,5 @@ plan trips with friends, split costs without the awkward math, and discover plac
    ```
    npm run dev
    ```
+## team resources
+- **Jira Board:** https://trello.com/b/ikPLf1BG/current-sprint
